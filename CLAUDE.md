@@ -153,7 +153,8 @@ python -m student_app.main             # öğrenci uygulaması
 python -m scripts.fake_students -n 30  # 30 sahte öğrenciyle yük testi
 pytest
 ```
-Seed giriş bilgileri: eğitmen `egitmen / egitmen123`, öğrenciler `2026001`…`2026030` / şifre = öğrenci no.
+Seed giriş bilgileri: eğitmen `egitmen / egitmen123`, öğrenciler `260101001`…`260101030` / şifre = öğrenci no
+(ilk 15 "1. Öğretim A", son 15 "1. Öğretim B").
 
 ## Çalışma şekli
 
