@@ -35,16 +35,18 @@ Birinci terminal `labsinav/` (P2), ikinci terminal `labsinav-ogrenci/` (P3). İk
 
 ---
 
-## Takvim — TESLİM: 8 Kasım Pazar 23:59
+## Takvim — TESLİM: 11 Kasım Çarşamba 23:59 · DEMO: 12 Kasım
 
 | Ne zaman | Prompt | Sahibi kontrol eder | Claude Code'u olmayanlar |
 |---|---|---|---|
-| Per 5 Kas akşam | ✅ P0 İskelet → **P1** Sunucu: sınav oturumu + log | A | **Rapora HEMEN başla**, soru içeriği |
-| Cum 6 Kas öğlene kadar | **P2** Eğitmen: giriş + soru bankası ‖ **P3** Öğrenci: sınav ekranı (paralel, worktree) | B, C | P0-P1'i test et, rapor |
-| Cum 6 Kas öğleden sonra | **P5** Sınav oluşturma + canlı panel + loglar ‖ **P4** Puanlama + sonuçlar (paralel) | B, D | P2-P3'ü test et, rapor |
-| Cmt 7 Kas | **P7** Entegrasyon + yük testi → hata düzeltme turları → (vakit kalırsa) P6 | A, herkes | 4 bilgisayarla aynı WiFi'da gerçek sınav denemesi |
-| Paz 8 Kas | Windows'ta deneme, son düzeltmeler, README, teslim | Herkes | Raporu bitir (akşam 20:00'de hazır olsun) |
-| Teslimden sonra | P8 (.exe), P9 (demo hazırlığı) | Herkes | Sunum provası |
+| Per 5 Kas | ✅ P0 · ✅ P1 · ✅ P2 · ✅ P3 → **P4 ‖ P5** (paralel) | Herkes | **Rapora başla**, soru içeriği |
+| Cum 6 Kas | **P7** Entegrasyon + yük testi → hata düzeltme | A | 2-4 bilgisayarla aynı WiFi'da gerçek sınav denemesi |
+| Cmt 7 Kas | **P6** Sınav modu + dayanıklılık + Excel'den öğrenci aktarma | C, D | Rapor: yöntem + diyagramlar |
+| Paz 8 Kas | **P8** .exe paketleme (Windows'ta) + Windows testi | Herkes | Rapor |
+| Pzt 9 Kas | Okul labında deneme → hata düzeltme | Herkes | Labda gerçek deneme |
+| Sal 10 Kas | Tampon + **P9** demo hazırlığı (herkes kendi modülü) | Herkes | Raporu bitir |
+| Çar 11 Kas | Son kontrol, teslim | Herkes | Teslim |
+| Per 12 Kas | **DEMO** | Herkes (hepsi gelmeli!) | |
 
 **Vize isterleri ↔ promptlar:** Giriş (P0+P2) · Ağ (P0) · Soru bankası (P2) · Sınav oluşturma/dağıtma (P5+P1) ·
 Öğrenci arayüzü (P3) · Cevap toplama + log (P1) · Otomatik puanlama (P4) · Sonuç listesi (P4).
