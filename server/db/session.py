@@ -7,7 +7,14 @@ Kullanım:
         user = session.scalar(select(User).where(...))
         ...
     # blok hatasız biterse commit, hata olursa rollback yapılır.
+
+YAZMA KURALI: Veri tabanına yazan kod get_session() yerine write_session() kullanır.
+write_session() tek bir kilit (lock) alır; böylece 40 öğrenci aynı anda cevap kaydetse de
+yazmalar sırayla yapılır ve SQLite "database is locked" hatası vermez. Sadece okuma
+yapan kod get_session() kullanabilir (WAL modu sayesinde okuma yazmayı beklemez).
 """
+
+import threading
 
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -21,6 +28,7 @@ from shared import config
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
+_write_lock = threading.Lock()  # aynı anda yalnızca bir yazma işlemi
 
 
 def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
@@ -83,3 +91,14 @@ def get_session() -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+@contextmanager
+def write_session() -> Iterator[Session]:
+    """Yazma yapan işlemler için oturum: kilit alınır, iş bitince commit edilir.
+
+    Kilidin içindeyken uzun iş (derleme, ağ beklemesi) YAPMAYIN; diğer yazmalar bekler.
+    """
+    with _write_lock:
+        with get_session() as session:
+            yield session

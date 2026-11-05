@@ -15,6 +15,14 @@ def fast_bcrypt(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "BCRYPT_ROUNDS", 4)
 
 
+@pytest.fixture(autouse=True)
+def temp_events_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Olay logu geçici dosyaya yazılsın; gerçek logs/events.log kirlenmesin."""
+    path = tmp_path / "events.log"
+    monkeypatch.setattr(config, "EVENTS_LOG_PATH", path)
+    return path
+
+
 @pytest.fixture
 def empty_db(tmp_path: Path) -> Iterator[Path]:
     """Geçici dosyada boş şema. Gerçek data/labsinav.db'ye dokunulmaz."""

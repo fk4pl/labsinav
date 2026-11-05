@@ -79,7 +79,13 @@ Sunucu → İstemci:
 | `save_ok` | `{question_id, saved_at}` |
 | `submit_ok` | `{submitted_at}` |
 | `exam_end` | `{exam_id, reason: "time_up" \| "instructor_stopped"}` |
+| `exam_update` | `{exam_id, ends_at, server_now}` — eğitmen süre ekledi; istemci geri sayımı yeni `ends_at`'e göre günceller |
 | `pong` | `{server_now}` |
+
+`error.code` değerleri: `BAD_REQUEST`, `UNKNOWN_TYPE`, `INVALID_CREDENTIALS`, `NOT_STUDENT`,
+`NOT_AUTHENTICATED`, `TIME_UP`, `ALREADY_SUBMITTED` (sınav zaten gönderilmiş),
+`EXAM_NOT_ACTIVE` (sınav yok / başlamadı / bu öğrenciye ait değil), `INTERNAL`.
+`focus_lost` mesajına cevap dönmez (sadece loglanır).
 
 Kritik kurallar:
 1. **Cevap anahtarı ASLA istemciye gönderilmez** (`is_correct`, kabul edilen cevaplar, gizli test case'ler).
@@ -130,7 +136,7 @@ event_logs(id, at, event, username, exam_id, ip, detail)
 
 - `logs/events.log` — JSON Lines (her satır bir olay): `{at, event, username, exam_id, ip, detail}`
   Olaylar: `login`, `login_failed`, `exam_started`, `submitted`, `auto_submitted`, `rejected_late`,
-  `focus_lost`, `disconnected`, `duplicate_session`.
+  `focus_lost`, `disconnected`, `duplicate_session`, `exam_stopped`, `exam_extended`.
   (`save_answer` çok sık geldiği için loglanmaz; cevabın kendisi zaten `answers.updated_at` ile tutulur.)
 - Aynı olaylar `event_logs` tablosuna da yazılır (eğitmen arayüzünde filtrelenebilir liste için).
 
@@ -139,6 +145,9 @@ event_logs(id, at, event, username, exam_id, ip, detail)
 - Kod tanımlayıcıları (değişken, fonksiyon, sınıf) **İngilizce**; arayüz metinleri ve hata mesajları **Türkçe**; yorumlar Türkçe olabilir.
 - Arayüz ile iş mantığı ayrı: UI dosyaları veri tabanına doğrudan sorgu yazmaz, `server/services/` fonksiyonlarını çağırır.
 - Uzun süren işler (ağ, derleme) UI thread'ini dondurmamalı.
+- Veri tabanına **yazan** kod `server.db.session.write_session()` kullanır (tek yazma kilidi; 40 öğrenci
+  aynı anda kaydedince SQLite kilitlenmesin). Sadece okuyan kod `get_session()` kullanabilir.
+  Kilidin içinde uzun iş (derleme vb.) yapma.
 - Her servis fonksiyonu için en az bir pytest testi.
 - Type hint kullan. Fonksiyonlar kısa ve tek iş yapan olsun.
 - Hata durumunda kullanıcıya anlaşılır Türkçe mesaj göster; asla ham traceback gösterme.

@@ -37,6 +37,7 @@ class MsgType:
     SAVE_OK = "save_ok"
     SUBMIT_OK = "submit_ok"
     EXAM_END = "exam_end"
+    EXAM_UPDATE = "exam_update"  # sınav süresi değişti (eğitmen süre ekledi)
     PONG = "pong"
 
 
@@ -49,6 +50,8 @@ class ErrorCode:
     NOT_STUDENT = "NOT_STUDENT"              # eğitmen hesabıyla öğrenci uygulamasına giriş
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"  # giriş yapmadan istek
     TIME_UP = "TIME_UP"                      # süre dolduktan sonra gelen istek
+    ALREADY_SUBMITTED = "ALREADY_SUBMITTED"  # sınav zaten gönderilmiş
+    EXAM_NOT_ACTIVE = "EXAM_NOT_ACTIVE"      # sınav yok / başlamadı / bitti / bu öğrenciye ait değil
     INTERNAL = "INTERNAL"                    # beklenmeyen sunucu hatası
 
 
@@ -175,6 +178,14 @@ class ExamEnd(_Model):
     reason: Literal["time_up", "instructor_stopped"]
 
 
+class ExamUpdate(_Model):
+    """Sınavın bitiş saati değişti. İstemci geri sayımı yeni ends_at'e göre günceller."""
+
+    exam_id: int
+    ends_at: datetime
+    server_now: datetime
+
+
 class Pong(_Model):
     server_now: datetime
 
@@ -192,6 +203,7 @@ PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     MsgType.SAVE_OK: SaveOk,
     MsgType.SUBMIT_OK: SubmitOk,
     MsgType.EXAM_END: ExamEnd,
+    MsgType.EXAM_UPDATE: ExamUpdate,
     MsgType.PONG: Pong,
 }
 
