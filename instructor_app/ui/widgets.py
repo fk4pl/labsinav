@@ -1,6 +1,8 @@
 """Eğitmen arayüzündeki ekranların ortak küçük yardımcıları. (Sahibi: B)"""
 
-from PySide6.QtWidgets import QLabel, QWidget
+from datetime import datetime
+
+from PySide6.QtWidgets import QLabel, QPushButton, QWidget
 
 from shared.theme import MONO_FONT_FAMILY
 
@@ -36,3 +38,22 @@ def show_errors(label: QLabel, errors: list[str]) -> None:
 def format_points(points: float) -> str:
     """10.0 → '10', 2.5 → '2,5' (Türkçe ondalık virgülü)."""
     return f"{points:g}".replace(".", ",")
+
+
+def make_button(text: str, object_name: str = "") -> QPushButton:
+    """Buton oluşturur. object_name: "secondary" (gri), "danger" (kırmızı) veya boş (mavi).
+
+    autoDefault kapalı: diyaloglarda Enter'a basınca yanlışlıkla tıklanmasın.
+    """
+    button = QPushButton(text)
+    button.setAutoDefault(False)
+    if object_name:
+        button.setObjectName(object_name)
+    return button
+
+
+def format_local(moment: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
+    """UTC zamanı bilgisayarın yerel saatine çevirip yazar; None ise '—'."""
+    if moment is None:
+        return "—"
+    return moment.astimezone().strftime(fmt)

@@ -103,6 +103,8 @@ class ServerObserver(Protocol):
 
     def on_exam_finished(self, exam_id: int, reason: str) -> None: ...
 
+    def on_focus_lost(self, student: ConnectedStudent, exam_id: int) -> None: ...
+
 
 @dataclass
 class ClientState:
@@ -512,6 +514,7 @@ async def handle_focus_lost(server: WsServer, client: ClientState, envelope: Env
         Event.FOCUS_LOST, username=client.student.username, exam_id=request.exam_id,
         ip=client.ip, detail=f"İstemci saati: {request.at.isoformat()}",
     )
+    server.notify("on_focus_lost", client.student, request.exam_id)
 
 
 async def _reject(

@@ -21,6 +21,9 @@ class RecordingObserver:
     def on_student_disconnected(self, student: ConnectedStudent) -> None:
         self.events.append(("disconnected", student.username))
 
+    def on_focus_lost(self, student: ConnectedStudent, exam_id: int) -> None:
+        self.events.append(("focus_lost", student.username))
+
 
 @pytest.fixture
 def observer() -> RecordingObserver:
@@ -131,3 +134,12 @@ def test_duplicate_session_closes_old(server: WsServer, observer: RecordingObser
         # Eski bağlantının kapanması yeni oturumu silmemeli
         time.sleep(0.1)
         assert len(server.connected_students()) == 1
+
+
+def test_focus_lost_notifies_observer(server: WsServer, observer: RecordingObserver) -> None:
+    """Canlı panel 'pencereden çıkma' sayısını observer üzerinden anında günceller."""
+    with open_client(server) as ws:
+        login(ws, "260101001")
+        payload = {"exam_id": 1, "at": "2026-11-05T10:00:00+00:00"}
+        ws.send(json.dumps({"type": "focus_lost", "id": "f1", "payload": payload}))
+        assert wait_until(lambda: ("focus_lost", "260101001") in observer.events)

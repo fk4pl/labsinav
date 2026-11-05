@@ -16,6 +16,7 @@ class ServerBridge(QObject):
     answer_saved = Signal(object, int, int)     # ConnectedStudent, exam_id, answered_count
     submitted = Signal(str, int, bool)          # username, exam_id, auto_submitted
     exam_finished = Signal(int, str)            # exam_id, reason ("time_up" | "instructor_stopped")
+    focus_lost = Signal(object, int)            # ConnectedStudent, exam_id
 
     def on_student_connected(self, student: ConnectedStudent) -> None:
         self.student_connected.emit(student)
@@ -31,3 +32,6 @@ class ServerBridge(QObject):
 
     def on_exam_finished(self, exam_id: int, reason: str) -> None:
         self.exam_finished.emit(exam_id, reason)
+
+    def on_focus_lost(self, student: ConnectedStudent, exam_id: int) -> None:
+        self.focus_lost.emit(student, exam_id)

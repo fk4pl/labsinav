@@ -23,6 +23,7 @@ from server.db.models import User
 from server.db.session import init_db
 from server.net.discovery import DiscoveryResponder, get_local_ip
 from server.net.ws_server import ConnectedStudent, WsServer, start_server
+from server.services import exam_admin
 from shared import config
 from shared.theme import STYLESHEET
 
@@ -35,15 +36,20 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("LabSınav — Eğitmen")
         self.resize(1100, 720)
 
-        tabs = QTabWidget()
-        tabs.setDocumentMode(True)
-        tabs.addTab(QuestionBankPage(), "Soru Bankası")
-        tabs.addTab(ExamBuilderPage(), "Sınavlar")
-        tabs.addTab(LivePanelPage(), "Canlı Panel")
-        tabs.addTab(ResultsPage(), "Sonuçlar")
-        tabs.addTab(StudentsPage(), "Öğrenciler")
-        tabs.addTab(LogsPage(), "Loglar")
-        self.setCentralWidget(tabs)
+        self.exam_page = ExamBuilderPage(server, user)
+        self.live_page = LivePanelPage(server, bridge)
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.addTab(QuestionBankPage(), "Soru Bankası")
+        self.tabs.addTab(self.exam_page, "Sınavlar")
+        self.tabs.addTab(self.live_page, "Canlı Panel")
+        self.tabs.addTab(ResultsPage(), "Sonuçlar")
+        self.tabs.addTab(StudentsPage(), "Öğrenciler")
+        self.tabs.addTab(LogsPage(), "Loglar")
+        self.setCentralWidget(self.tabs)
+
+        self.exam_page.exam_started.connect(self.on_exam_started)
+        bridge.exam_finished.connect(self.on_exam_finished)
 
         settings_menu = self.menuBar().addMenu("Ayarlar")
         settings_menu.addAction("Şifre değiştir…", self.change_password)
@@ -63,6 +69,14 @@ class MainWindow(QMainWindow):
         if accepted:
             QMessageBox.information(self, "Şifre değiştirildi", "Yeni şifreniz kaydedildi.")
 
+    def on_exam_started(self, exam_id: int) -> None:
+        """Sınavlar sekmesinde sınav başlatılınca Canlı Panel'e geçilir."""
+        self.live_page.show_exam(exam_id)
+        self.tabs.setCurrentWidget(self.live_page)
+
+    def on_exam_finished(self, exam_id: int, reason: str) -> None:
+        self.exam_page.reload()  # durum sütunu "Bitti" olsun
+
     def on_student_changed(self, student: ConnectedStudent) -> None:
         self.update_status()
 
@@ -73,16 +87,35 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self.server.connected_students():
-            answer = QMessageBox.question(
-                self, "Çıkış",
-                "Bağlı öğrenciler var. Uygulamayı kapatırsanız bağlantıları kopacak.\n"
-                "Yine de kapatılsın mı?",
+        message = self._close_warning()
+        if message is not None:
+            answer = QMessageBox.warning(
+                self, "Çıkış", message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,  # Enter'a yanlışlıkla basılırsa kapanmasın
             )
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
         event.accept()
+
+    def _close_warning(self) -> str | None:
+        """Kapatmadan önce gösterilecek uyarı; uyarılacak bir şey yoksa None."""
+        running = exam_admin.list_running_exams()
+        if running:
+            titles = "\n".join(f"• {exam.title} ({exam.class_name})" for exam in running)
+            return (
+                f"DEVAM EDEN SINAV VAR:\n{titles}\n\n"
+                "Uygulamayı kapatırsanız öğrencilerin bağlantısı kopar ve cevap kaydedemezler.\n"
+                "Süre işlemeye devam eder; uygulamayı yeniden açınca sınav kaldığı yerden sürer.\n\n"
+                "Yine de kapatılsın mı?"
+            )
+        if self.server.connected_students():
+            return (
+                "Bağlı öğrenciler var. Uygulamayı kapatırsanız bağlantıları kopacak.\n"
+                "Yine de kapatılsın mı?"
+            )
+        return None
 
 
 def _show_fatal(message: str) -> None:
