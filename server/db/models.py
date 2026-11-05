@@ -260,6 +260,8 @@ class Answer(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
     is_correct: Mapped[bool | None] = mapped_column(Boolean)
     points_awarded: Mapped[float | None] = mapped_column(Float)
+    # Puanı eğitmen elle verdiyse True. Otomatik (yeniden) puanlama bu cevaba dokunmaz.
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     submission: Mapped[Submission] = relationship(back_populates="answers")
     question: Mapped[Question] = relationship()

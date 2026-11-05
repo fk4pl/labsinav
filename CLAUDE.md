@@ -115,18 +115,21 @@ exam_questions(exam_id, question_id, points, order_index)
 submissions(id, exam_id, student_id, status['in_progress'|'submitted'], started_at,
             submitted_at, ip, auto_submitted, total_score)  UNIQUE(exam_id, student_id)
 answers(id, submission_id, question_id, selected_option_id, text_answer, code,
-        updated_at, is_correct, points_awarded)  UNIQUE(submission_id, question_id)
+        updated_at, is_correct, points_awarded, is_manual)  UNIQUE(submission_id, question_id)
 code_results(id, answer_id, compiled, compile_output, passed, total,
              time_complexity, space_complexity, measurements_json, created_at)      -- FİNAL
 event_logs(id, at, event, username, exam_id, ip, detail)
 ```
 - Tüm zamanlar veri tabanında **UTC ISO 8601**; arayüzde yerel saate çevrilir.
+- `answers.is_manual`: puanı eğitmen elle verdiyse 1; otomatik (yeniden) puanlama bu cevaba dokunmaz.
+- Var olan tabloya yeni sütun eklenirse `server/db/session.py` içindeki `ADDED_COLUMNS` listesine de
+  eklenir; `init_db()` eski veri tabanı dosyalarına eksik sütunu kendisi ekler.
 - Silinen soru, geçmiş sınavlarda kullanılmışsa gerçekten silinmez (`is_archived` ekle) — eski sonuçlar bozulmamalı.
 
 ## Puanlama
 
 - `mcq`: seçilen şık doğruysa sorunun puanı, değilse 0.
-- `classic`: cevap normalize edilir (baş/son boşluk, büyük-küçük harf, Türkçe İ/ı dahil, çoklu boşluk)
+- `classic`: cevap normalize edilir (baş/son boşluk, büyük-küçük harf, Türkçe İ/ı dahil, çoklu boşluk, sondaki noktalama)
   ve kabul edilen cevaplardan biriyle eşleşirse tam puan. Eğitmen sonuç ekranından elle puan değiştirebilir.
 - `code` (FİNAL): `puan × (weight_tests × geçen/toplam + weight_complexity × uygunluk)`;
   uygunluk: beklenen veya daha iyi = 1, bir sınıf kötü = 0.5, daha kötü = 0.
