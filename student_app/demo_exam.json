@@ -1,0 +1,65 @@
+{
+  "exam": {
+    "id": 9001,
+    "title": "Programlamaya Giriş — Deneme Sınavı",
+    "questions": [
+      {
+        "id": 1, "type": "mcq", "points": 10, "order_index": 1,
+        "text": "Aşağıdaki C kodunun çıktısı nedir?\n```c\nint x = 5;\nx += 2;\nprintf(\"%d\", x * 2);\n```",
+        "options": [
+          {"id": 11, "text": "10", "order_index": 1},
+          {"id": 12, "text": "14", "order_index": 2},
+          {"id": 13, "text": "7", "order_index": 3},
+          {"id": 14, "text": "Derleme hatası", "order_index": 4}
+        ]
+      },
+      {
+        "id": 2, "type": "mcq", "points": 10, "order_index": 2,
+        "text": "`int dizi[10];` tanımında `dizi` kaç bayt yer kaplar? (int = 4 bayt)",
+        "options": [
+          {"id": 21, "text": "10", "order_index": 1},
+          {"id": 22, "text": "40", "order_index": 2},
+          {"id": 23, "text": "4", "order_index": 3},
+          {"id": 24, "text": "Belirsiz", "order_index": 4}
+        ]
+      },
+      {
+        "id": 3, "type": "mcq", "points": 10, "order_index": 3,
+        "text": "Hangisi bir döngü yapısı değildir?",
+        "options": [
+          {"id": 31, "text": "`for`", "order_index": 1},
+          {"id": 32, "text": "`while`", "order_index": 2},
+          {"id": 33, "text": "`switch`", "order_index": 3},
+          {"id": 34, "text": "`do ... while`", "order_index": 4}
+        ]
+      },
+      {
+        "id": 4, "type": "classic", "points": 15, "order_index": 4,
+        "text": "C dilinde bir değişkenin bellekteki adresini veren operatör hangisidir? (Sadece operatörü yazın.)",
+        "options": []
+      },
+      {
+        "id": 5, "type": "classic", "points": 15, "order_index": 5,
+        "text": "Aşağıdaki fonksiyon n = 4 için ne döndürür?\n```c\nint f(int n) {\n    if (n <= 1) return 1;\n    return n * f(n - 1);\n}\n```",
+        "options": []
+      },
+      {
+        "id": 6, "type": "mcq", "points": 10, "order_index": 6,
+        "text": "`if (a < b && b < c)` ifadesinde `a = 1, b = 3, c = 2` ise koşulun sonucu nedir?",
+        "options": [
+          {"id": 61, "text": "Doğru (1)", "order_index": 1},
+          {"id": 62, "text": "Yanlış (0)", "order_index": 2}
+        ]
+      },
+      {
+        "id": 7, "type": "code", "points": 30, "order_index": 7,
+        "text": "Klavyeden okunan n sayısı için 1'den n'e kadar olan sayıların toplamını yazdıran programı tamamlayın.",
+        "options": [],
+        "starter_code": "#include <stdio.h>\n\nint main(void) {\n    int n;\n    scanf(\"%d\", &n);\n    // kodunu buraya yaz\n    return 0;\n}\n"
+      }
+    ]
+  },
+  "saved_answers": {
+    "2": {"selected_option_id": 22}
+  }
+}

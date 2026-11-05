@@ -4,6 +4,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from shared.protocol import UserInfo
+from student_app.net.client import ConnectionState
+from student_app.ui.style import repolish
 
 
 class WaitingPage(QWidget):
@@ -44,3 +46,14 @@ class WaitingPage(QWidget):
         if user.class_name:
             details += f"  •  {user.class_name}"
         self.details_label.setText(details)
+
+    def set_connection_state(self, state: str) -> None:
+        if state == ConnectionState.CONNECTED:
+            text, name = "● Sunucuya bağlı", "success"
+        elif state == ConnectionState.RECONNECTING:
+            text, name = "● Bağlantı koptu, yeniden bağlanıyor…", "error"
+        else:
+            text, name = "● Sunucuya bağlı değil", "error"
+        self.connection_label.setText(text)
+        self.connection_label.setObjectName(name)
+        repolish(self.connection_label)
