@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from server.db.models import Base
@@ -65,9 +65,30 @@ def get_engine() -> Engine:
     return _engine
 
 
+# Şemaya SONRADAN eklenen sütunlar: (tablo, sütun, SQL tanımı).
+# create_all() var olan tabloya sütun eklemez; eski veri tabanı dosyası olan biri
+# git pull yapınca uygulama çökmesin diye bu sütunlar init_db()'de elle eklenir.
+# Yeni sütun eklerken buraya da bir satır ekleyin (DEFAULT değeri olmalı).
+ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    ("answers", "is_manual", "BOOLEAN NOT NULL DEFAULT 0"),
+]
+
+
 def init_db() -> None:
-    """Eksik tabloları oluşturur (var olanlara dokunmaz)."""
-    Base.metadata.create_all(get_engine())
+    """Eksik tabloları oluşturur (var olanlara dokunmaz), eksik sütunları ekler."""
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    """ADDED_COLUMNS'taki sütunlardan tabloda olmayanları ALTER TABLE ile ekler."""
+    inspector = inspect(engine)
+    with engine.begin() as connection:
+        for table, column, definition in ADDED_COLUMNS:
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            if column not in existing:
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
 
 
 def reset_db() -> None:
