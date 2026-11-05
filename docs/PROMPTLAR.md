@@ -35,20 +35,23 @@ Birinci terminal `labsinav/` (P2), ikinci terminal `labsinav-ogrenci/` (P3). İk
 
 ---
 
-## Takvim
+## Takvim — TESLİM: 8 Kasım Pazar 23:59
 
-| Gün | Prompt | Sahibi kontrol eder | Claude Code'u olmayanlar o gün |
+| Ne zaman | Prompt | Sahibi kontrol eder | Claude Code'u olmayanlar |
 |---|---|---|---|
-| 1 | P0 İskelet | Herkes | Soru içeriği yazmaya başla, rapor iskeleti |
-| 2 | P1 Sunucu: sınav oturumu + log | A | Okul bilgisayarı/WiFi ön denemesi |
-| 3 | P2 Eğitmen: giriş + soru bankası | B | P0-P1'i test et |
-| 3 | P3 Öğrenci: istemci + sınav ekranı | C | |
-| 4 | P4 Puanlama + sonuçlar + Excel | D | P2-P3'ü test et |
-| 5 | P5 Eğitmen: sınav oluşturma + canlı panel + loglar | B | Akış diyagramı |
-| 6 | P6 Dayanıklılık + sınav modu + öğrenci içe aktarma | C, D | |
-| 7 | P7 Entegrasyon + yük testi | A | Uçtan uca elle test |
-| 8–9 | P8 Paketleme (.exe) + laboratuvar testi + hata düzeltme | Herkes | Labda gerçek deneme |
-| 10 | P9 Demo hazırlığı | Herkes | Sunum provası |
+| Per 5 Kas akşam | ✅ P0 İskelet → **P1** Sunucu: sınav oturumu + log | A | **Rapora HEMEN başla**, soru içeriği |
+| Cum 6 Kas öğlene kadar | **P2** Eğitmen: giriş + soru bankası ‖ **P3** Öğrenci: sınav ekranı (paralel, worktree) | B, C | P0-P1'i test et, rapor |
+| Cum 6 Kas öğleden sonra | **P5** Sınav oluşturma + canlı panel + loglar ‖ **P4** Puanlama + sonuçlar (paralel) | B, D | P2-P3'ü test et, rapor |
+| Cmt 7 Kas | **P7** Entegrasyon + yük testi → hata düzeltme turları → (vakit kalırsa) P6 | A, herkes | 4 bilgisayarla aynı WiFi'da gerçek sınav denemesi |
+| Paz 8 Kas | Windows'ta deneme, son düzeltmeler, README, teslim | Herkes | Raporu bitir (akşam 20:00'de hazır olsun) |
+| Teslimden sonra | P8 (.exe), P9 (demo hazırlığı) | Herkes | Sunum provası |
+
+**Vize isterleri ↔ promptlar:** Giriş (P0+P2) · Ağ (P0) · Soru bankası (P2) · Sınav oluşturma/dağıtma (P5+P1) ·
+Öğrenci arayüzü (P3) · Cevap toplama + log (P1) · Otomatik puanlama (P4) · Sonuç listesi (P4).
+**P6 ve P8 vize için zorunlu değil** — sadece vakit kalırsa. Bir prompt uzarsa önce zorunlulara odaklan.
+
+**Limit uyarısı:** Paralel iki oturum limiti iki kat hızlı harcar. Limit dolarsa ekip o arada test edip hata
+listesi hazırlasın, açılınca tek promptla toplu düzeltilsin.
 
 ---
 
