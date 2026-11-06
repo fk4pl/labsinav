@@ -81,3 +81,61 @@ def test_marked_numbers_and_is_filled() -> None:
     assert state.toggle_mark(10) is False
     assert not is_filled(SavedAnswer(text_answer="   "))
     assert is_filled(SavedAnswer(code="int x;"))
+
+
+# ---------------------------------------------------------------------------
+# Yerel yedekle birleştirme (merge_backup)
+# ---------------------------------------------------------------------------
+
+from datetime import timedelta  # noqa: E402
+
+from student_app.local_backup import BackupData  # noqa: E402
+
+EARLY = NOW - timedelta(minutes=5)
+LATE = NOW + timedelta(minutes=5)
+
+
+def _local(text: str, at: datetime) -> SavedAnswer:
+    return SavedAnswer(text_answer=text, updated_at=at)
+
+
+def test_merge_backup_newer_local_wins_and_becomes_dirty() -> None:
+    state = ExamState()
+    state.load(make_start(saved={20: _local("sunucu", EARLY)}))
+    taken = state.merge_backup(BackupData(answers={20: _local("yerel", LATE)}))
+    assert taken == 1
+    assert state.answer_for(20).text_answer == "yerel"
+    assert state.take_unsent() == [20]  # sunucuya tekrar gönderilecek
+
+
+def test_merge_backup_newer_server_wins() -> None:
+    """Öğrenci başka bilgisayardan devam ettiyse eski yedek sunucudakini ezmez."""
+    state = ExamState()
+    state.load(make_start(saved={20: _local("sunucu", LATE)}))
+    assert state.merge_backup(BackupData(answers={20: _local("eski yedek", EARLY)})) == 0
+    assert state.answer_for(20).text_answer == "sunucu"
+    assert not state.dirty
+
+
+def test_merge_backup_takes_answers_missing_on_server_and_marks() -> None:
+    state = ExamState()
+    state.load(make_start())
+    backup = BackupData(answers={30: _local("hiç gitmemiş", EARLY)}, marked={10, 999})
+    assert state.merge_backup(backup) == 1
+    assert state.answer_for(30).text_answer == "hiç gitmemiş"
+    assert state.marked == {10}  # sınavda olmayan soru işareti alınmaz
+
+
+def test_merge_backup_skips_unknown_question_and_same_content() -> None:
+    state = ExamState()
+    state.load(make_start(saved={20: SavedAnswer(text_answer="aynı")}))  # zamanı bilinmiyor
+    backup = BackupData(answers={999: _local("x", LATE), 20: _local("aynı", LATE)})
+    assert state.merge_backup(backup) == 0
+    assert not state.dirty
+
+
+def test_set_answer_records_time() -> None:
+    state = ExamState()
+    state.load(make_start())
+    state.set_answer(20, SavedAnswer(text_answer="a"), LATE)
+    assert state.answer_for(20).updated_at == LATE

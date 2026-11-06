@@ -155,6 +155,9 @@ class SavedAnswer(_Model):
     selected_option_id: int | None = None
     text_answer: str | None = None
     code: str | None = None
+    # Sunucuda en son ne zaman kaydedildi (UTC). İstemci, yerel yedekle çakışmada
+    # hangisinin daha yeni olduğuna bununla karar verir. Eski sürümlerle uyum için isteğe bağlı.
+    updated_at: datetime | None = None
 
 
 class ExamStart(_Model):

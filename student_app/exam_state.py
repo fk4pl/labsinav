@@ -5,9 +5,15 @@ Ekran (ui/exam_view.py) sadece bu sınıfı günceller ve ondan okur.
 
 "dirty" (kirli) cevap: öğrencinin değiştirdiği ama sunucunun henüz save_ok ile
 onaylamadığı cevap. Bağlantı koparsa bu cevaplar kaybolmaz; yeniden bağlanınca tekrar gönderilir.
+
+Her cevap updated_at taşır (sunucu saatine göre, UTC). Uygulama çöküp tekrar açılınca yerel
+yedek (local_backup.py) ile sunucudaki cevaplar merge_backup() ile birleştirilir: hangisi daha yeniyse o kazanır.
 """
 
+from datetime import datetime
+
 from shared.protocol import ExamForStudent, ExamStart, QuestionForStudent, SavedAnswer
+from student_app.local_backup import BackupData
 
 
 def is_filled(answer: SavedAnswer | None) -> bool:
@@ -62,8 +68,9 @@ class ExamState:
     def answer_for(self, question_id: int) -> SavedAnswer | None:
         return self.answers.get(question_id)
 
-    def set_answer(self, question_id: int, answer: SavedAnswer) -> None:
-        self.answers[question_id] = answer
+    def set_answer(self, question_id: int, answer: SavedAnswer, at: datetime | None = None) -> None:
+        """Öğrenci cevabı değiştirdi. at: değişikliğin zamanı (sunucu saatine göre)."""
+        self.answers[question_id] = answer.model_copy(update={"updated_at": at})
         self.dirty.add(question_id)
         self._version[question_id] = self._version.get(question_id, 0) + 1
 
@@ -89,6 +96,29 @@ class ExamState:
         """Bağlantı koptu: onayı beklenen istekler kayboldu, tekrar gönderilecekler."""
         self._sent_version = {}
 
+    def merge_backup(self, backup: BackupData) -> int:
+        """Yerel yedeği sunucudan gelen cevaplarla birleştirir. Yedekten alınan cevap sayısını döner.
+
+        Yedekteki cevap şu durumlarda kazanır ve tekrar gönderilmek üzere kirli işaretlenir:
+          - sunucuda bu sorunun cevabı yoksa,
+          - sunucudakinin zamanı bilinmiyorsa veya yedektekinden eskiyse.
+        Sunucudaki cevap daha yeniyse (ör. öğrenci başka bilgisayardan devam etti) sunucu kazanır.
+        """
+        question_ids = {q.id for q in self.questions}
+        taken = 0
+        for qid, local in backup.answers.items():
+            if qid not in question_ids or local.updated_at is None:
+                continue
+            server = self.answers.get(qid)
+            if server is not None and server.updated_at is not None and server.updated_at >= local.updated_at:
+                continue
+            if server is not None and _same_content(server, local):
+                continue  # aynı cevap zaten sunucuda: tekrar göndermeye gerek yok
+            self.set_answer(qid, local, local.updated_at)
+            taken += 1
+        self.marked |= backup.marked & question_ids
+        return taken
+
     # --- İşaretler ve özet ---
 
     def toggle_mark(self, question_id: int) -> bool:
@@ -105,3 +135,7 @@ class ExamState:
 
     def marked_numbers(self) -> list[int]:
         return [i + 1 for i, q in enumerate(self.questions) if q.id in self.marked]
+
+
+def _same_content(a: SavedAnswer, b: SavedAnswer) -> bool:
+    return (a.selected_option_id, a.text_answer, a.code) == (b.selected_option_id, b.text_answer, b.code)

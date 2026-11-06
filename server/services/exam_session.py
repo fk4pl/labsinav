@@ -273,7 +273,8 @@ def _saved_answers(session: Session, submission_id: int) -> dict[int, SavedAnswe
     answers = session.scalars(select(Answer).where(Answer.submission_id == submission_id))
     return {
         a.question_id: SavedAnswer(
-            selected_option_id=a.selected_option_id, text_answer=a.text_answer, code=a.code
+            selected_option_id=a.selected_option_id, text_answer=a.text_answer, code=a.code,
+            updated_at=a.updated_at,
         )
         for a in answers
     }

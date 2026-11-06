@@ -40,5 +40,13 @@ class FinishedPage(QWidget):
         outer.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
 
     def show_result(self, at: datetime, detail: str) -> None:
+        self.icon_label.setText("✓")
         self.title_label.setText(f"Sınavın gönderildi — {local_time_text(at)}")
         self.detail_label.setText(detail)
+
+    def show_warning(self, title: str, detail: str) -> None:
+        """Sınav bitti ama gönderildiği doğrulanamadı (ör. sunucuya ulaşılamadı)."""
+        self.icon_label.setText("⚠")
+        self.title_label.setText(title)
+        self.detail_label.setText(detail)
+        self.detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
