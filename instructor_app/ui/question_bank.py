@@ -48,10 +48,11 @@ class QuestionFilterModel(QSortFilterProxyModel):
         self.setSortRole(SORT_ROLE)
 
     def set_filters(self, category_id: int | None, question_type: str | None, search: str) -> None:
+        self.beginFilterChange()  # Qt'ye "filtre değişiyor" de; bitince liste yenilenir
         self.category_id = category_id
         self.question_type = question_type
         self.search = turkish_lower(search.strip())
-        self.invalidateFilter()
+        self.endFilterChange()
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         index = self.sourceModel().index(source_row, 0, source_parent)

@@ -161,6 +161,8 @@ def test_exam_start_contains_saved_answers(running_exam: int) -> None:
     save_text(running_exam, STUDENT_A, classic.id, "strlen", T0 + timedelta(minutes=1))
     start = exam_session.join_exam(running_exam, user_id(STUDENT_A), IP, T0 + timedelta(minutes=2))
     assert start.saved_answers[classic.id].text_answer == "strlen"
+    # İstemci yerel yedekle çakışmada hangisinin yeni olduğunu bununla anlar.
+    assert start.saved_answers[classic.id].updated_at == T0 + timedelta(minutes=1)
 
 
 # ---------------------------------------------------------------------------

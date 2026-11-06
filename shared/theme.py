@@ -4,6 +4,11 @@ Kullanım: app.setStyleSheet(STYLESHEET)
 Özel görünüm için widget'a objectName ver: ör. QPushButton#secondary, QLabel#title.
 """
 
+from pathlib import Path
+
+# Stil dosyasında kullanılan küçük resimler (spin kutusu okları). Qt yolda "/" bekler.
+ASSETS = (Path(__file__).resolve().parent / "assets").as_posix()
+
 PRIMARY = "#2563eb"
 PRIMARY_HOVER = "#1d4ed8"
 DANGER = "#dc2626"
@@ -59,6 +64,52 @@ QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox, QList
     border-radius: 8px;
     padding: 8px 10px;
     selection-background-color: {PRIMARY};
+}}
+
+/* Spin kutusu: sağda iki ok butonu için yer ayrılır, oklar shared/assets/ içindeki SVG'ler. */
+QSpinBox, QDoubleSpinBox {{
+    padding: 6px 10px;
+}}
+QSpinBox::up-button, QDoubleSpinBox::up-button,
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    subcontrol-origin: border;
+    width: 24px;
+    background: #f3f5f9;
+    border: none;
+    border-left: 1px solid {BORDER};
+}}
+QSpinBox::up-button, QDoubleSpinBox::up-button {{
+    subcontrol-position: top right;
+    margin: 1px 1px 0 0;          /* dış kenarlığın üstüne binmesin */
+    border-top-right-radius: 7px;
+    border-bottom: 1px solid {BORDER};
+}}
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    subcontrol-position: bottom right;
+    margin: 0 1px 1px 0;
+    border-bottom-right-radius: 7px;
+}}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+    background: #e4e9f2;
+}}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+    image: url({ASSETS}/arrow_up.svg);
+    width: 10px;
+    height: 7px;
+}}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+    image: url({ASSETS}/arrow_down.svg);
+    width: 10px;
+    height: 7px;
+}}
+QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled,
+QSpinBox::up-arrow:off, QDoubleSpinBox::up-arrow:off {{
+    image: url({ASSETS}/arrow_up_disabled.svg);
+}}
+QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled,
+QSpinBox::down-arrow:off, QDoubleSpinBox::down-arrow:off {{
+    image: url({ASSETS}/arrow_down_disabled.svg);
 }}
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QComboBox:focus, QListWidget:focus {{

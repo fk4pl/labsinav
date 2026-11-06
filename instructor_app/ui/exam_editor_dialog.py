@@ -67,8 +67,9 @@ class BankFilterModel(QuestionFilterModel):
         self.hidden_ids: set[int] = set()
 
     def set_hidden_ids(self, ids: set[int]) -> None:
+        self.beginFilterChange()
         self.hidden_ids = ids
-        self.invalidateFilter()
+        self.endFilterChange()
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         row: QuestionRow = self.sourceModel().index(source_row, 0, source_parent).data(ROW_ROLE)

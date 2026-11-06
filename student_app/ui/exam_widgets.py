@@ -8,8 +8,8 @@
 Bu parçalar sadece görüntüden sorumludur; ağ ve zamanlama işleri exam_view.py'dedir.
 """
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtGui import QColor, QKeyEvent, QPainter, QPaintEvent, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -116,12 +116,57 @@ class TopBar(QFrame):
 # Soru numaraları ızgarası
 # ----------------------------------------------------------------------
 
+# Izgaradaki buton durumları ve ipucu metinleri
+STATUS_TIPS = {
+    "answered_marked": "Cevaplandı, sonra bakacağım",
+    "marked": "Sonra bakacağım (cevapsız)",
+    "answered": "Cevaplandı",
+    "empty": "Boş",
+}
+
+
+def question_status(answered: bool, marked: bool) -> str:
+    if answered and marked:
+        return "answered_marked"
+    if marked:
+        return "marked"
+    return "answered" if answered else "empty"
+
+
+class QuestionButton(QPushButton):
+    """Soru numarası butonu. Cevaplanmış + işaretli soruda sağ üst köşeye turuncu bayrak çizer."""
+
+    def __init__(self, text: str, parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self.flagged = False
+
+    def set_flagged(self, flagged: bool) -> None:
+        self.flagged = flagged
+        self.update()  # yeniden çizilsin
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)  # önce normal buton (yeşil kutu, numara)
+        if not self.flagged:
+            return
+        size = max(8.0, self.width() * 0.36)
+        right, top = self.width() - 2.0, 2.0  # 2 px: kenarlığın içinde kalsın
+        triangle = QPolygonF([
+            QPointF(right - size, top), QPointF(right, top), QPointF(right, top + size),
+        ])
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor("white"), 1))  # yeşil üstünde ayrı görünsün diye ince beyaz çizgi
+        painter.setBrush(QColor(WARNING))
+        painter.drawPolygon(triangle)
+        painter.end()
+
+
 class QuestionGrid(QWidget):
     question_clicked = Signal(int)  # soru sırası (0'dan başlar)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._buttons: list[QPushButton] = []
+        self._buttons: list[QuestionButton] = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         title = QLabel("Sorular")
@@ -132,7 +177,9 @@ class QuestionGrid(QWidget):
         layout.addLayout(self._grid)
         legend = QLabel(
             f'<span style="color:{theme.SUCCESS}">■</span> cevaplandı<br>'
-            f'<span style="color:{WARNING}">■</span> sonra bakacağım<br>'
+            f'<span style="color:{theme.SUCCESS}">■</span><span style="color:{WARNING}">◥</span>'
+            ' cevaplandı, sonra bakacağım<br>'
+            f'<span style="color:{WARNING}">■</span> sonra bakacağım (cevapsız)<br>'
             f'<span style="color:{theme.BORDER}">■</span> boş<br>'
             f'<span style="color:{theme.PRIMARY}">□</span> şu anki soru'
         )
@@ -146,7 +193,7 @@ class QuestionGrid(QWidget):
             button.deleteLater()
         self._buttons = []
         for index in range(count):
-            button = QPushButton(str(index + 1))
+            button = QuestionButton(str(index + 1))
             button.setObjectName("questionNumber")
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(lambda _=False, i=index: self.question_clicked.emit(i))
@@ -155,11 +202,11 @@ class QuestionGrid(QWidget):
 
     def set_status(self, index: int, answered: bool, marked: bool, current: bool) -> None:
         button = self._buttons[index]
-        status = "marked" if marked else ("answered" if answered else "empty")
+        status = question_status(answered, marked)
         button.setProperty("status", status)
         button.setProperty("current", "true" if current else "false")
-        tip = {"marked": "Sonra bakacağım", "answered": "Cevaplandı", "empty": "Boş"}[status]
-        button.setToolTip(f"Soru {index + 1}: {tip}")
+        button.set_flagged(status == "answered_marked")
+        button.setToolTip(f"Soru {index + 1}: {STATUS_TIPS[status]}")
         repolish(button)
 
 

@@ -4,14 +4,21 @@ Bu ekran ağdan habersizdir. Sunucuya bir şey yollamak istediğinde sinyal yaya
     save_requested(SaveAnswerRequest)   -> cevabı kaydet
     submit_requested(int)               -> sınavı bitir (exam_id)
     focus_lost(int)                     -> öğrenci pencereden çıktı (exam_id)
+    expired_offline()                   -> süre doldu ama sunucuya ulaşılamıyor (kiosk kilidi kalkmalı)
 student_app/main.py bu sinyalleri gerçek sunucuya (veya --demo'da sahte sunucuya) bağlar.
+
+Yerel yedek: her cevap değişikliğinde cevaplar bilgisayara da yazılır (local_backup.py).
+Uygulama çöküp tekrar açılınca, sunucudan gelen exam_start ile yedek birleştirilir.
+Sınav gönderilince (finish) yedek silinir.
 
 Otomatik kayıt (debounce): her değişiklikte 2 sn'lik zamanlayıcı baştan başlar. Öğrenci
 2 sn yazmayı bırakınca o ana kadar değişen tüm cevaplar tek seferde gönderilir.
 Soru değiştirince ve "Sınavı Bitir"e basınca beklemeden gönderilir.
 """
 
+import logging
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
@@ -29,6 +36,7 @@ from PySide6.QtWidgets import (
 from shared import config
 from shared.protocol import ExamStart, SaveAnswerRequest, SaveOk, UserInfo
 from student_app.exam_state import ExamState
+from student_app.local_backup import LocalBackup
 from student_app.net.client import ConnectionState
 from student_app.net.server_clock import ServerClock
 from student_app.ui.exam_widgets import QuestionGrid, QuestionPage, TopBar, set_level
@@ -36,18 +44,31 @@ from student_app.ui.exam_widgets import QuestionGrid, QuestionPage, TopBar, set_
 COUNTDOWN_TICK_MS = 250
 BANNER_MS = 8000
 WARNING_THRESHOLDS_SEC = (300, 60)  # 5. ve 1. dakika uyarıları
+# Süre dolduktan sonra sunucunun exam_end yollaması için beklenen süre. Bu süre geçtiği hâlde
+# bağlantı yoksa sunucu çökmüş sayılır ve öğrenci kilitli ekranda bırakılmaz.
+OFFLINE_EXPIRY_GRACE_SEC = 15
+OFFLINE_TEXT = "Bağlantı koptu, cevapların bilgisayarında saklanıyor…"
+
+logger = logging.getLogger(__name__)
 
 
 class ExamView(QWidget):
     save_requested = Signal(object)  # SaveAnswerRequest
     submit_requested = Signal(int)
     focus_lost = Signal(int)
+    expired_offline = Signal()
     zoom_in_requested = Signal()
     zoom_out_requested = Signal()
 
-    def __init__(self, clock: ServerClock, parent: QWidget | None = None) -> None:
+    def __init__(self, clock: ServerClock, backup_dir: Path | None = None,
+                 parent: QWidget | None = None) -> None:
+        """backup_dir None ise yerel yedek tutulmaz (--demo)."""
         super().__init__(parent)
         self.clock = clock
+        self._backup_dir = backup_dir
+        self._backup: LocalBackup | None = None
+        self._backup_error_shown = False
+        self._expired_offline = False   # süre sunucusuz doldu: yedek silinmez, kayıt gönderilmez
         self.state = ExamState()
         self._pages: list[QuestionPage] = []
         self._current = 0
@@ -88,6 +109,13 @@ class ExamView(QWidget):
         self.banner.setWordWrap(True)
         self.banner.hide()
 
+        # Bağlantı yokken sürekli görünen sarı şerit (zamanlı banner'dan ayrı).
+        self.offline_banner = QLabel(OFFLINE_TEXT)
+        self.offline_banner.setObjectName("banner")
+        self.offline_banner.setProperty("level", "warning")
+        self.offline_banner.setWordWrap(True)
+        self.offline_banner.hide()
+
         self.grid = QuestionGrid()
         self.grid.setFixedWidth(200)
         self.grid.question_clicked.connect(self.go_to)
@@ -96,14 +124,14 @@ class ExamView(QWidget):
 
         self.prev_button = QPushButton("◀ Önceki")
         self.prev_button.setObjectName("secondary")
-        self.prev_button.clicked.connect(lambda: self.go_to(self._current - 1))
+        self.prev_button.clicked.connect(self._go_previous)
         self.mark_button = QPushButton("⚑ İşaretle")
         self.mark_button.setObjectName("secondary")
         self.mark_button.setToolTip("Bu soruya sonra bakmak için işaretle")
         self.mark_button.clicked.connect(self._toggle_mark)
         self.next_button = QPushButton("Sonraki ▶")
         self.next_button.setObjectName("secondary")
-        self.next_button.clicked.connect(lambda: self.go_to(self._current + 1))
+        self.next_button.clicked.connect(self._go_next)
         self.finish_button = QPushButton("Sınavı Bitir")
         self.finish_button.setObjectName("danger")
         self.finish_button.clicked.connect(self._on_finish_clicked)
@@ -134,6 +162,7 @@ class ExamView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.top_bar)
+        layout.addWidget(self.offline_banner)
         layout.addWidget(self.banner)
         layout.addLayout(body, stretch=1)
 
@@ -150,6 +179,10 @@ class ExamView(QWidget):
         """Sınav sürüyor mu (yüklü ve bitmemiş)?"""
         return self.state.exam is not None and self._countdown_timer.isActive()
 
+    @property
+    def backup_path(self) -> Path | None:
+        return self._backup.path if self._backup else None
+
     def load_exam(self, start: ExamStart, user: UserInfo | None) -> None:
         """exam_start geldi. Aynı sınav tekrar geldiyse ekran yeniden kurulmaz, sadece cevaplar yenilenir."""
         same_exam = self.state.load(start)
@@ -157,7 +190,10 @@ class ExamView(QWidget):
         if not same_exam:
             self._build_pages()
             self._current = 0
+            self._open_backup(start.exam.id, user)
+        self._expired_offline = False
         self._show_saved_answers()
+        self._save_backup()
         self._locked = False
         self._submitting = False
         self.finish_button.setEnabled(True)
@@ -177,6 +213,7 @@ class ExamView(QWidget):
 
     def set_connection_state(self, state: str) -> None:
         self._online = state == ConnectionState.CONNECTED
+        self.offline_banner.setVisible(not self._online)
         if state == ConnectionState.CONNECTED:
             set_level(self.top_bar.connection_label, "● Bağlı", "ok")
         elif state == ConnectionState.RECONNECTING:
@@ -211,10 +248,21 @@ class ExamView(QWidget):
         self._locked = True
         self._set_locked_editors(True)
 
+    def finish(self) -> None:
+        """Sınav sunucuda gönderildi: durdur ve yerel yedeği sil.
+
+        Süre sunucuya ulaşılamadan dolduysa yedek SİLİNMEZ: içinde sunucuya gitmemiş cevap olabilir.
+        """
+        self.stop()
+        if self._backup is not None and not self._expired_offline:
+            self._backup.delete()
+
     def reset(self) -> None:
-        """Başka öğrenci giriş yaptı: önceki öğrencinin cevapları asla taşınmasın."""
+        """Başka öğrenci giriş yaptı: önceki öğrencinin cevapları asla taşınmasın (yedeği silinmez)."""
         self.stop()
         self.state = ExamState()
+        self._backup = None
+        self._expired_offline = False
         self._build_pages()
 
     def show_banner(self, text: str, level: str = "info") -> None:
@@ -246,6 +294,12 @@ class ExamView(QWidget):
         self._refresh_grid()
         self._refresh_save_status()
 
+    def _go_previous(self) -> None:
+        self.go_to(self._current - 1)
+
+    def _go_next(self) -> None:
+        self.go_to(self._current + 1)
+
     def go_to(self, index: int) -> None:
         if not self._pages or not 0 <= index < len(self._pages):
             return
@@ -262,6 +316,7 @@ class ExamView(QWidget):
         if not self._pages:
             return
         self.state.toggle_mark(self._pages[self._current].question.id)
+        self._save_backup()
         self._refresh_mark_button()
         self._refresh_grid()
 
@@ -285,7 +340,8 @@ class ExamView(QWidget):
     def _on_answer_changed(self, question_id: int, page: QuestionPage) -> None:
         if self._locked:
             return
-        self.state.set_answer(question_id, page.editor.value())
+        self.state.set_answer(question_id, page.editor.value(), self.clock.now())
+        self._save_backup()
         self._refresh_grid()
         self._refresh_save_status()
         self._save_timer.start()  # her değişiklikte 2 sn baştan başlar (debounce)
@@ -293,7 +349,7 @@ class ExamView(QWidget):
     def flush_saves(self) -> None:
         """Kaydedilmemiş cevapları hemen gönderir (bağlıysak)."""
         self._save_timer.stop()
-        if not self._online or self.state.exam is None:
+        if not self._online or self.state.exam is None or self._expired_offline:
             return
         for qid in self.state.take_unsent():
             answer = self.state.answer_for(qid)
@@ -304,6 +360,31 @@ class ExamView(QWidget):
                 text_answer=answer.text_answer, code=answer.code,
             ))
         self._refresh_save_status()
+
+    # ------------------------------------------------------------------
+    # Yerel yedek
+    # ------------------------------------------------------------------
+
+    def _open_backup(self, exam_id: int, user: UserInfo | None) -> None:
+        """Yeni sınav yüklendi: bu öğrencinin yedeğini aç ve varsa sunucudaki cevaplarla birleştir."""
+        self._backup = None
+        if self._backup_dir is None or user is None:
+            return
+        self._backup = LocalBackup(self._backup_dir, user.username, exam_id)
+        data = self._backup.load()
+        if data is not None and self.state.merge_backup(data) > 0:
+            self.show_banner("Kaldığın yerden devam ediyorsun: bilgisayardaki yedekten cevapların geri yüklendi.")
+
+    def _save_backup(self) -> None:
+        if self._backup is None or self._expired_offline:
+            return
+        try:
+            self._backup.save(self.state.answers, self.state.marked)
+        except OSError:
+            logger.warning("Yerel yedek yazılamadı: %s", self._backup.path, exc_info=True)
+            if not self._backup_error_shown:
+                self._backup_error_shown = True
+                self.show_banner("Uyarı: cevaplar bu bilgisayara yedeklenemedi. Sınav devam ediyor.", "warning")
 
     def _refresh_save_status(self) -> None:
         label = self.top_bar.save_label
@@ -342,6 +423,14 @@ class ExamView(QWidget):
                 self._warn(threshold)
         if remaining <= 0 and not self._locked:
             self._on_time_up()
+        if remaining <= -OFFLINE_EXPIRY_GRACE_SEC and not self._online:
+            self._expire_offline()
+
+    def _expire_offline(self) -> None:
+        """Süre doldu, payı da geçti ama sunucu yok (çöktü/kapandı). Öğrenci kilitli kalmasın."""
+        self.stop()
+        self._expired_offline = True
+        self.expired_offline.emit()
 
     def _warn(self, threshold: int) -> None:
         minutes = threshold // 60
@@ -404,6 +493,7 @@ class ExamView(QWidget):
         if state != Qt.ApplicationState.ApplicationActive and self.is_active and self.isVisible():
             assert self.state.exam is not None
             self.focus_lost.emit(self.state.exam.id)
+            self.show_banner("Pencereden çıkış kaydedildi.", "warning")
 
 
 def _join(numbers: list[int]) -> str:
