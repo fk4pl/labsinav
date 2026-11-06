@@ -70,7 +70,8 @@ QPushButton#questionNumber {{
     color: {theme.TEXT};
     border: 2px solid {theme.BORDER};
 }}
-QPushButton#questionNumber[status="answered"] {{
+QPushButton#questionNumber[status="answered"],
+QPushButton#questionNumber[status="answered_marked"] {{
     background: {theme.SUCCESS};
     color: white;
     border-color: {theme.SUCCESS};

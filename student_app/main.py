@@ -15,7 +15,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QStackedWidget
 
@@ -46,6 +46,9 @@ EXAM_OVER_ERRORS = {
     ErrorCode.ALREADY_SUBMITTED: "Bu sınavı zaten göndermiştin.",
     ErrorCode.EXAM_NOT_ACTIVE: "Sınav sona erdi. Kaydedilmiş cevapların gönderildi.",
 }
+
+# Sunucu bulunamazsa bu aralıkla kendiliğinden tekrar aranır (eğitmen henüz giriş yapmamış olabilir).
+DISCOVERY_RETRY_MS = 3000
 EXAM_END_REASONS = {
     "time_up": "Süre doldu. Kaydedilmiş cevapların otomatik olarak gönderildi.",
     "instructor_stopped": "Sınav eğitmen tarafından bitirildi. Kaydedilmiş cevapların gönderildi.",
@@ -70,6 +73,9 @@ class StudentWindow(QMainWindow):
         self.zoom = zoom
         self._user: UserInfo | None = None
         self._discovery: DiscoveryThread | None = None
+        self._retry_timer = QTimer(self)
+        self._retry_timer.setInterval(DISCOVERY_RETRY_MS)
+        self._retry_timer.timeout.connect(self._retry_discovery)
 
         self.login_page = LoginPage()
         self.login_page.login_requested.connect(self._on_login_requested)
@@ -136,9 +142,24 @@ class StudentWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def start_discovery(self) -> None:
-        if self._discovery is not None and self._discovery.isRunning():
+        """İlk arama veya "Tekrar ara" butonu: ekranda "Sunucu aranıyor…" görünür."""
+        if self._is_discovering():
             return
         self.login_page.set_searching()
+        self._run_discovery()
+        self._retry_timer.start()  # bulunamazsa 3 sn'de bir kendiliğinden tekrar aranır
+
+    def _retry_discovery(self) -> None:
+        """Zamanlayıcı çağırır. Ekranı değiştirmeden arar; öğrenci IP yazıyorsa alan kaybolmaz."""
+        if self.login_page.has_server() or self.pages.currentWidget() is not self.login_page:
+            return
+        if not self._is_discovering():
+            self._run_discovery()
+
+    def _is_discovering(self) -> bool:
+        return self._discovery is not None and self._discovery.isRunning()
+
+    def _run_discovery(self) -> None:
         self._discovery = DiscoveryThread(self)
         self._discovery.finished_with_result.connect(self._on_discovery_result)
         self._discovery.start()
@@ -233,6 +254,7 @@ class StudentWindow(QMainWindow):
                 return
             self.exam_view.flush_saves()
         self.backend.close()
+        self._retry_timer.stop()
         if self._discovery is not None:
             self._discovery.wait()  # keşif en fazla birkaç saniye sürer
         event.accept()

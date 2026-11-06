@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from instructor_app.ui.widgets import format_local, make_button
+from instructor_app.ui.widgets import make_button
 from server.services import event_query, exam_admin
 from server.services.event_log import Event
 from server.services.event_query import DEFAULT_LIMIT, EVENT_LABELS, EventFilter, EventRow
@@ -207,22 +207,16 @@ class LogsPage(QWidget):
         self.count_label.setText(f"{len(self.rows)} olay{suffix}")
 
     def _fill_row(self, index: int, row: EventRow) -> None:
-        values = [
-            format_local(row.at, "%d.%m.%Y %H:%M:%S"),
-            event_query.event_label(row.event),
-            row.username or "",
-            row.exam_title or (str(row.exam_id) if row.exam_id else ""),
-            row.ip or "",
-            row.detail or "",
-        ]
-        for column, text in enumerate(values):
+        # Dışa aktarmayla aynı metinler: yerel saat, "no · ad soyad", boş IP "—"
+        for column, text in enumerate(event_query.row_values(row)):
             self.table.setItem(index, column, QTableWidgetItem(text))
         event_item = self.table.item(index, COL_EVENT)
         event_item.setForeground(QBrush(QColor(EVENT_COLORS.get(row.event, MUTED))))
         font = event_item.font()
         font.setBold(True)
         event_item.setFont(font)
-        self.table.item(index, COL_DETAIL).setToolTip(row.detail or "")
+        detail_item = self.table.item(index, COL_DETAIL)
+        detail_item.setToolTip(detail_item.text())
 
     # --- Dosya işlemleri ---
 

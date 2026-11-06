@@ -209,7 +209,8 @@ def test_logs_page_filters(instructor: User) -> None:
 
     page.event_filter.setCurrentIndex(page.event_filter.findData(Event.LOGIN_FAILED))
     assert page.table.rowCount() == 1
-    assert page.table.item(0, 2).text() == "260101002"
+    assert page.table.item(0, 2).text() == "260101002 · Elif Kaya"  # no · ad soyad
+    assert page.table.item(0, 4).text() == "—"  # boş IP
     page.close()
 
 

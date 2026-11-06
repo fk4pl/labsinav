@@ -1,6 +1,7 @@
 """Öğrenci giriş ekranı. (Sahibi: C)
 
-Üstte sunucu durumu gösterilir. Sunucu otomatik bulunamazsa IP girme alanı açılır.
+Üstte sunucu durumu gösterilir. Sunucu otomatik bulunamazsa IP girme alanı açılır;
+bu sırada main.py sunucuyu birkaç saniyede bir kendiliğinden aramaya devam eder.
 Ekran sadece kullanıcıdan bilgi toplar; ağ işlerini student_app/main.py yapar.
 """
 
@@ -109,20 +110,27 @@ class LoginPage(QWidget):
         self.address_row.hide()
         self.retry_button.setEnabled(False)
 
+    def has_server(self) -> bool:
+        return self._server is not None
+
     def set_server_found(self, host: str, port: int) -> None:
         self._server = (host, port)
         self.server_label.setText(f"Sunucu bulundu: {host}:{port}")
         self.address_row.hide()
-        self.username_input.setFocus()
+        if not self.password_input.hasFocus():  # şifre yazılıyorsa imleci oradan alma
+            self.username_input.setFocus()
 
     def set_server_not_found(self) -> None:
         self._server = None
         self.server_label.setText(
-            "Sunucu otomatik bulunamadı. Eğitmen bilgisayarının IP adresini girin."
+            "Sunucu bulunamadı, otomatik olarak tekrar aranıyor… "
+            "İsterseniz eğitmen bilgisayarının IP adresini girin."
         )
-        self.address_row.show()
         self.retry_button.setEnabled(True)
-        self.address_input.setFocus()
+        if self.address_row.isHidden():
+            # Sadece ilk seferde: her tekrar aramada imleci öğrencinin elinden alma.
+            self.address_row.show()
+            self.address_input.setFocus()
 
     # --- Giriş ---
 

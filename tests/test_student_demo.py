@@ -5,6 +5,7 @@ from tests.qt_utils import qapp, qt_wait_until  # önce gelmeli (offscreen)
 from shared.protocol import SavedAnswer
 from student_app.demo import DemoBackend, load_demo_exam
 from student_app.main import StudentWindow, parse_args
+from student_app.ui.exam_widgets import QuestionGrid
 from student_app.net.server_clock import ServerClock
 
 
@@ -60,3 +61,17 @@ def test_time_up_error_shows_finished_page() -> None:
     assert window.pages.currentWidget() is window.finished_page
     assert "Süre doldu" in window.finished_page.detail_label.text()
     backend.close()
+
+
+def test_grid_shows_answered_and_marked_separately() -> None:
+    qapp()
+    grid = QuestionGrid()
+    grid.build(4)
+    grid.set_status(0, answered=True, marked=True, current=False)
+    grid.set_status(1, answered=False, marked=True, current=False)
+    grid.set_status(2, answered=True, marked=False, current=False)
+    grid.set_status(3, answered=False, marked=False, current=True)
+    buttons = grid._buttons
+    assert [b.property("status") for b in buttons] == ["answered_marked", "marked", "answered", "empty"]
+    assert [b.flagged for b in buttons] == [True, False, False, False]  # bayrak sadece ilkinde
+    assert buttons[0].toolTip() == "Soru 1: Cevaplandı, sonra bakacağım"
