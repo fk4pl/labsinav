@@ -1,31 +1,37 @@
 """Eğitmen uygulaması: python -m instructor_app.main
 
-Açılış sırası: veri tabanı hazırlanır → eğitmen giriş penceresi → (giriş başarılıysa)
-WebSocket sunucusu ve keşif dinleyicisi başlar → ana pencere açılır.
+Açılış sırası: veri tabanı hazırlanır → (hiç eğitmen yoksa) ilk kurulum penceresi →
+eğitmen giriş penceresi → (giriş başarılıysa) WebSocket sunucusu ve keşif dinleyicisi
+başlar → ana pencere açılır.
 Giriş penceresi kapatılırsa sunucu hiç açılmadan uygulama biter.
 """
 
 import logging
 import sys
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QTabWidget
 
 from instructor_app.server_bridge import ServerBridge
 from instructor_app.ui.exam_builder import ExamBuilderPage
 from instructor_app.ui.live_panel import LivePanelPage
-from instructor_app.ui.login import ChangePasswordDialog, LoginDialog
+from instructor_app.ui.login import ChangePasswordDialog, FirstSetupDialog, LoginDialog
 from instructor_app.ui.logs import LogsPage
 from instructor_app.ui.question_bank import QuestionBankPage
 from instructor_app.ui.results import ResultsPage
 from instructor_app.ui.students import StudentsPage
 from server.db.models import User
 from server.db.session import init_db
+from server.services.auth import has_instructor
 from server.net.discovery import DiscoveryResponder, get_local_ip
 from server.net.ws_server import ConnectedStudent, WsServer, start_server
 from server.services import exam_admin
 from shared import config
+from shared.app_errors import install_error_handler, setup_logging
 from shared.theme import STYLESHEET
+
+STATUS_UPDATE_MS = 250  # durum çubuğu (bağlı öğrenci sayısı) en fazla bu aralıkla yenilenir
 
 
 class MainWindow(QMainWindow):
@@ -59,6 +65,11 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.status_label)
         self.update_status()
 
+        # 40 öğrenci aynı anda bağlanınca durum çubuğu 40 kez değil, bir kez yenilensin.
+        self.status_timer = QTimer(self)
+        self.status_timer.setSingleShot(True)
+        self.status_timer.setInterval(STATUS_UPDATE_MS)
+        self.status_timer.timeout.connect(self.update_status)
         bridge.student_connected.connect(self.on_student_changed)
         bridge.student_disconnected.connect(self.on_student_changed)
 
@@ -78,7 +89,8 @@ class MainWindow(QMainWindow):
         self.exam_page.reload()  # durum sütunu "Bitti" olsun
 
     def on_student_changed(self, student: ConnectedStudent) -> None:
-        self.update_status()
+        if not self.status_timer.isActive():
+            self.status_timer.start()
 
     def update_status(self) -> None:
         count = len(self.server.connected_students())
@@ -123,15 +135,27 @@ def _show_fatal(message: str) -> None:
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    setup_logging("instructor")
     app = QApplication(sys.argv)
     app.setApplicationName("LabSınav Eğitmen")
+    install_error_handler()
     app.setStyleSheet(STYLESHEET)
 
     config.ensure_runtime_dirs()
     init_db()
 
-    login = LoginDialog()
+    username = ""
+    if not has_instructor():
+        # İlk açılış: önce eğitmen hesabı oluşturulur, sonra normal giriş ekranı gelir.
+        setup = FirstSetupDialog()
+        if not setup.exec() or setup.username is None:
+            return 0
+        username = setup.username
+        QMessageBox.information(
+            None, "LabSınav", "Eğitmen hesabı oluşturuldu. Şimdi şifrenizle giriş yapın."
+        )
+
+    login = LoginDialog(username=username)
     if not login.exec() or login.user is None:
         return 0
 

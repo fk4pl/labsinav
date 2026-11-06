@@ -7,6 +7,7 @@ gerçek sınavdaki akışın aynısıdır. Cevaplar sadece bellekte tutulur.
 
 import json
 from datetime import timedelta
+from functools import partial
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -83,11 +84,12 @@ class DemoBackend(QObject):
         if isinstance(payload, SaveAnswerRequest):
             self.saved[payload.question_id] = payload
             reply = SaveOk(question_id=payload.question_id, saved_at=self.clock.now())
-            QTimer.singleShot(FAKE_SAVE_DELAY_MS, lambda: self.save_confirmed.emit(reply))
+            # context (self) verilir: nesne silinirse zamanlayıcı da iptal olur
+            QTimer.singleShot(FAKE_SAVE_DELAY_MS, self, partial(self.save_confirmed.emit, reply))
         elif msg_type == MsgType.SUBMIT:
             self._end_timer.stop()
             reply = SubmitOk(submitted_at=self.clock.now())
-            QTimer.singleShot(FAKE_SAVE_DELAY_MS, lambda: self.submit_confirmed.emit(reply))
+            QTimer.singleShot(FAKE_SAVE_DELAY_MS, self, partial(self.submit_confirmed.emit, reply))
         return "demo"
 
     def send_focus_lost(self, exam_id: int) -> None:

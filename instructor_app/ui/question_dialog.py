@@ -32,7 +32,6 @@ from instructor_app.ui.widgets import make_error_box, set_monospace, show_errors
 from server.services import question_bank
 from server.services.question_bank import (
     MAX_OPTIONS,
-    MAX_POINTS,
     MIN_OPTIONS,
     CategoryRow,
     OptionDraft,
@@ -40,6 +39,7 @@ from server.services.question_bank import (
     QuestionDetail,
     QuestionDraft,
 )
+from shared import config
 
 OPTION_LETTERS = "ABCDEF"
 DEFAULT_OPTION_COUNT = 4
@@ -287,7 +287,7 @@ class QuestionDialog(QDialog):
             self.category_combo.addItem(category.name, category.id)
 
         self.points_spin = QDoubleSpinBox()
-        self.points_spin.setRange(0.5, MAX_POINTS)
+        self.points_spin.setRange(config.MIN_QUESTION_POINTS, config.MAX_QUESTION_POINTS)
         self.points_spin.setSingleStep(1)
         self.points_spin.setDecimals(1)
         self.points_spin.setValue(10)

@@ -215,3 +215,21 @@ def test_live_snapshot(seeded_db) -> None:
     assert rows["260101003"].focus_lost_count == 0
 
     assert [e.id for e in exam_admin.list_running_exams()] == [exam_id]
+
+
+@pytest.mark.parametrize("points, ok", [(0.5, True), (100, True), (0.4, False), (100.5, False), (float("nan"), False)])
+def test_exam_question_points_limits(points: float, ok: bool) -> None:
+    draft = ExamDraft(
+        title="Quiz", class_id=1, duration_minutes=30,
+        questions=[ExamQuestionDraft(1, 10), ExamQuestionDraft(2, points)],
+    )
+    errors = exam_admin.validate_exam_draft(draft)
+    if ok:
+        assert errors == []
+    else:
+        assert errors == ["2. soru: Puan 0,5 ile 100 arasında olmalı."]
+
+
+def test_create_exam_rejects_points_over_limit(seeded_db) -> None:
+    with pytest.raises(ExamAdminError, match="0,5 ile 100"):
+        exam_admin.create_exam(make_draft(question_ids(2), points=101), user_id("egitmen"))

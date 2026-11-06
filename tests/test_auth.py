@@ -1,9 +1,14 @@
 import pytest
 
+from server.db.models import User
+from server.db.session import write_session
 from server.services.auth import (
     PasswordChangeError,
+    SetupError,
     authenticate,
     change_password,
+    create_first_instructor,
+    has_instructor,
     hash_password,
     verify_password,
 )
@@ -67,3 +72,49 @@ def test_change_password_rejected(seeded_db, old: str, new: str, expected: str) 
     with pytest.raises(PasswordChangeError, match=expected):
         change_password(user.id, old, new)
     assert authenticate("egitmen", "egitmen123") is not None
+
+
+# ---------------------------------------------------------------------------
+# İlk kurulum
+# ---------------------------------------------------------------------------
+
+def test_has_instructor(seeded_db) -> None:
+    assert has_instructor()
+
+
+def test_empty_db_has_no_instructor(empty_db) -> None:
+    assert not has_instructor()
+
+
+def test_create_first_instructor_then_login(empty_db) -> None:
+    user = create_first_instructor("  Ayşe Korkmaz ", " ayse ", "gizli123", "gizli123")
+    assert (user.username, user.full_name, user.role) == ("ayse", "Ayşe Korkmaz", "instructor")
+    assert has_instructor()
+    assert authenticate("ayse", "gizli123") is not None
+
+
+@pytest.mark.parametrize("args, message", [
+    (("", "ayse", "gizli123", "gizli123"), "Ad soyad boş olamaz."),
+    (("Ayşe", "ay", "gizli123", "gizli123"), "Kullanıcı adı 3 ile 64"),
+    (("Ayşe", "ay se", "gizli123", "gizli123"), "boşluk olamaz"),
+    (("Ayşe", "ayse", "123", "123"), "en az 6 karakter"),
+    (("Ayşe", "ayse", "gizli123", "gizli124"), "Şifreler birbiriyle aynı değil."),
+])
+def test_create_first_instructor_validation(empty_db, args: tuple, message: str) -> None:
+    with pytest.raises(SetupError, match=message):
+        create_first_instructor(*args)
+    assert not has_instructor()
+
+
+def test_second_first_instructor_is_rejected(empty_db) -> None:
+    create_first_instructor("Ayşe", "ayse", "gizli123", "gizli123")
+    with pytest.raises(SetupError, match="Zaten bir eğitmen"):
+        create_first_instructor("Mehmet", "mehmet", "gizli123", "gizli123")
+
+
+def test_first_instructor_username_taken_by_student(empty_db) -> None:
+    """Eğitmen yok ama kullanıcı adı bir öğrencide kullanılıyor."""
+    with write_session() as session:
+        session.add(User(username="260101001", full_name="Öğrenci", password_hash="x", role="student"))
+    with pytest.raises(SetupError, match="kullanılıyor"):
+        create_first_instructor("Ayşe", "260101001", "gizli123", "gizli123")

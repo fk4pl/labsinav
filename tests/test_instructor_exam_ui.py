@@ -4,7 +4,7 @@ Gerçek sunucu yerine FakeServer kullanılır; sinyaller elle yayılır (aynı t
 olduğu için slot hemen çalışır). Ekran gerekmez (offscreen).
 """
 
-from tests.qt_utils import qapp  # QT_QPA_PLATFORM'u ayarlar; önce gelmeli
+from tests.qt_utils import qapp, qt_wait_until  # QT_QPA_PLATFORM'u ayarlar; önce gelmeli
 
 from datetime import datetime, timedelta
 
@@ -155,16 +155,22 @@ def test_live_panel_updates_from_signals(instructor: User) -> None:
     bridge.on_answer_saved(student, exam_id, 3)
     bridge.on_focus_lost(student, exam_id)
     row = panel.rows["260101001"]
+    # Toplu güncelleme: tablo hemen değil, zamanlayıcı dolunca yenilenir.
+    assert panel.table.item(row, live_panel.COL_ANSWERED).text() == "0 / 10"
+    assert panel.flush_timer.isActive()
+    panel.flush_pending()
     assert panel.table.item(row, live_panel.COL_ANSWERED).text() == "3 / 10"
     assert panel.table.item(row, live_panel.COL_FOCUS).text() == "1"
     assert panel.table.item(row, live_panel.COL_IP).text() == "10.0.0.5"
 
     bridge.on_submitted("260101001", exam_id, False)
     assert panel.status_of("260101001") == SUBMITTED
+    panel.flush_pending()
     assert panel.counter_labels[SUBMITTED].text() == "1"
     assert panel.counter_labels[OFFLINE].text() == "14"
 
     bridge.on_answer_saved(student, exam_id + 999, 9)  # başka sınavın olayı yok sayılır
+    panel.flush_pending()
     assert panel.table.item(row, live_panel.COL_ANSWERED).text() == "3 / 10"
 
 
@@ -224,7 +230,6 @@ def test_live_panel_with_real_server(instructor: User) -> None:
     from websockets.sync.client import connect
 
     from server.net.ws_server import WsServer
-    from tests.qt_utils import qt_wait_until
 
     bridge = ServerBridge()
     server = WsServer(observer=bridge, host="127.0.0.1", port=0)
@@ -248,3 +253,60 @@ def test_live_panel_with_real_server(instructor: User) -> None:
         qt_wait_until(lambda: panel.counter_labels[SUBMITTED].text() == "1")
     finally:
         server.stop()
+
+
+def test_live_panel_batches_many_signals(instructor: User) -> None:
+    """Çok sayıda sinyal tek bir toplu güncellemeyle tabloya yansır."""
+    exam_id = seeded_exam_id()
+    server, bridge = FakeServer(), ServerBridge()
+    exam_session.start_exam(exam_id, utcnow())
+    panel = LivePanelPage(server, bridge)
+    student = online_student("260101001")
+    server.online.append(student)
+    bridge.on_student_connected(student)
+    for count in range(1, 101):
+        bridge.on_answer_saved(student, exam_id, count % 11)
+    assert panel.dirty == {"260101001"}
+    qt_wait_until(lambda: not panel.dirty)  # zamanlayıcı kendiliğinden boşaltır
+    row = panel.rows["260101001"]
+    assert panel.table.item(row, live_panel.COL_ANSWERED).text() == "1 / 10"
+    assert panel.counter_labels[IN_EXAM].text() == "1"
+
+
+# ---------------------------------------------------------------------------
+# Puan sınırları arayüzde
+# ---------------------------------------------------------------------------
+
+def test_points_spin_boxes_use_config_limits(instructor: User) -> None:
+    from instructor_app.ui.exam_editor_dialog import COL_POINTS
+    from instructor_app.ui.question_dialog import QuestionDialog
+    from shared import config
+
+    question_dialog = QuestionDialog([])
+    assert question_dialog.points_spin.minimum() == config.MIN_QUESTION_POINTS
+    assert question_dialog.points_spin.maximum() == config.MAX_QUESTION_POINTS
+
+    editor = ExamEditorDialog(None, instructor.id)
+    delegate = editor.exam_table.itemDelegateForColumn(COL_POINTS) or editor.exam_table.itemDelegate()
+    spin = delegate.createEditor(editor.exam_table, None, editor.exam_table.model().index(0, 0))
+    assert (spin.minimum(), spin.maximum()) == (config.MIN_QUESTION_POINTS, config.MAX_QUESTION_POINTS)
+
+
+def test_editor_clamps_old_out_of_range_default_points(
+    instructor: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sınır konmadan önce 150 puanla kaydedilmiş soru sınava 100 puanla eklenir ve kullanıcı uyarılır."""
+    from dataclasses import replace
+
+    from instructor_app.ui import exam_editor_dialog
+
+    shown: list[str] = []
+    monkeypatch.setattr(
+        exam_editor_dialog.QMessageBox, "information",
+        staticmethod(lambda _parent, _title, text: shown.append(text)),
+    )
+    editor = ExamEditorDialog(None, instructor.id)
+    row = next(iter(editor.bank_rows.values()))
+    editor._add_rows([replace(row, default_points=150)])
+    assert editor.points() == [100]
+    assert shown and "sınıra çekildi" in shown[0]

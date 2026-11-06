@@ -1,11 +1,16 @@
-"""Örnek veri: python -m scripts.seed
+"""Örnek veri: python -m scripts.seed [--students N]
 
 UYARI: Her çalıştırıldığında veri tabanındaki TÜM veriyi siler ve baştan oluşturur.
 
 Giriş bilgileri:
     Eğitmen:   egitmen / egitmen123
-    Öğrenciler: 260101001 … 260101030, şifre = öğrenci no
+    Öğrenciler: 260101001 … (varsayılan 30 öğrenci), şifre = öğrenci no
+    İlk yarısı "1. Öğretim A", ikinci yarısı "1. Öğretim B" sınıfındadır.
+
+Yük testi için: python -m scripts.seed --students 80  → A sınıfında 40 öğrenci.
 """
+
+import argparse
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -88,6 +93,8 @@ CLASSIC_QUESTIONS: list[tuple[str, str, list[str]]] = [
     (CAT_LOOPS, "int i = 0; while (i < 3) i++; döngüsü bittiğinde i'nin değeri kaçtır?", ["3", "üç"]),
 ]
 
+DEFAULT_STUDENT_COUNT = len(STUDENT_NAMES)
+
 DRAFT_EXAM_TITLE = "C Programlama — Ara Sınav Denemesi"
 DRAFT_EXAM_MCQ_COUNT = 6
 DRAFT_EXAM_CLASSIC_COUNT = 4
@@ -97,7 +104,17 @@ def _student_no(index: int) -> str:
     return str(FIRST_STUDENT_NO + index)
 
 
-def _create_users(session: Session) -> tuple[User, SchoolClass]:
+def _student_name(index: int) -> str:
+    """İlk 30 öğrenci listedeki isimleri alır; fazlası için ad ve soyadlar karıştırılır."""
+    if index < len(STUDENT_NAMES):
+        return STUDENT_NAMES[index]
+    count = len(STUDENT_NAMES)
+    first_name = STUDENT_NAMES[index % count].split()[0]
+    last_name = STUDENT_NAMES[(index * 7 + index // count) % count].split()[-1]
+    return f"{first_name} {last_name}"
+
+
+def _create_users(session: Session, student_count: int) -> tuple[User, SchoolClass]:
     class_a = SchoolClass(name=CLASS_A)
     class_b = SchoolClass(name=CLASS_B)
     session.add_all([class_a, class_b])
@@ -109,11 +126,11 @@ def _create_users(session: Session) -> tuple[User, SchoolClass]:
     )
     session.add(instructor)
 
-    half = len(STUDENT_NAMES) // 2
-    for i, name in enumerate(STUDENT_NAMES):
+    half = student_count // 2
+    for i in range(student_count):
         number = _student_no(i)
         session.add(User(
-            username=number, full_name=name, password_hash=hash_password(number),
+            username=number, full_name=_student_name(i), password_hash=hash_password(number),
             role="student", school_class=class_a if i < half else class_b,
         ))
     return instructor, class_a
@@ -162,9 +179,12 @@ def _create_draft_exam(
     ]
 
 
-def seed(session: Session) -> None:
-    """Örnek veriyi verilen oturuma ekler (tablolar boş olmalı)."""
-    instructor, class_a = _create_users(session)
+def seed(session: Session, student_count: int = DEFAULT_STUDENT_COUNT) -> None:
+    """Örnek veriyi verilen oturuma ekler (tablolar boş olmalı).
+
+    student_count: toplam öğrenci sayısı; ilk yarısı A, ikinci yarısı B sınıfına girer.
+    """
+    instructor, class_a = _create_users(session, student_count)
     mcqs, classics = _create_questions(session)
     _create_draft_exam(session, instructor, class_a, mcqs, classics)
 
@@ -183,17 +203,34 @@ def summary(session: Session) -> dict[str, int]:
     }
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Örnek veri oluşturur (veri tabanını SIFIRLAR).")
+    parser.add_argument(
+        "--students", type=int, default=DEFAULT_STUDENT_COUNT,
+        help="toplam öğrenci sayısı, yarısı A yarısı B sınıfına (varsayılan: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+    if not 2 <= args.students <= 999:
+        parser.error("--students 2 ile 999 arasında olmalı.")
+    return args
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
     config.ensure_runtime_dirs()
     print(f"Veri tabanı sıfırlanıyor: {config.DB_PATH}")
+    print(f"{args.students} öğrenci oluşturuluyor (şifreler hash'lendiği için biraz sürebilir)…")
     reset_db()
     with get_session() as session:
-        seed(session)
+        seed(session, args.students)
     with get_session() as session:
         counts = summary(session)
     print("Örnek veri oluşturuldu: " + ", ".join(f"{v} {k}" for k, v in counts.items()))
     print(f"Eğitmen girişi: {INSTRUCTOR[0]} / {INSTRUCTOR[1]}")
-    print(f"Öğrenciler: {_student_no(0)} … {_student_no(len(STUDENT_NAMES) - 1)} (şifre = öğrenci no)")
+    half = args.students // 2
+    print(f"{CLASS_A}: {_student_no(0)} … {_student_no(half - 1)}")
+    print(f"{CLASS_B}: {_student_no(half)} … {_student_no(args.students - 1)}")
+    print("Öğrenci şifresi = öğrenci no")
 
 
 if __name__ == "__main__":

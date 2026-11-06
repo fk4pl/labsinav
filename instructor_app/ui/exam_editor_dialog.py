@@ -43,7 +43,8 @@ from server.services.exam_admin import (
     ExamDraft,
     ExamQuestionDraft,
 )
-from server.services.question_bank import MAX_POINTS, TYPE_LABELS, QuestionRow, turkish_lower
+from server.services.question_bank import TYPE_LABELS, QuestionRow, clamp_points, turkish_lower
+from shared import config
 
 DEFAULT_DURATION = 40
 
@@ -105,7 +106,7 @@ class PointsDelegate(QStyledItemDelegate):
 
     def createEditor(self, parent: QWidget, option, index: QModelIndex) -> QWidget:
         spin = QDoubleSpinBox(parent)
-        spin.setRange(0.5, MAX_POINTS)
+        spin.setRange(config.MIN_QUESTION_POINTS, config.MAX_QUESTION_POINTS)
         spin.setDecimals(1)
         spin.setSingleStep(1)
         return spin
@@ -379,9 +380,20 @@ class ExamEditorDialog(QDialog):
         self.exam_table.blockSignals(False)
 
     def _add_rows(self, rows: list[QuestionRow]) -> None:
+        adjusted = 0
         for row in rows:
-            self._append_question(row.id, row.type, row.text_preview, row.default_points)
+            points = clamp_points(row.default_points)
+            adjusted += points != row.default_points
+            self._append_question(row.id, row.type, row.text_preview, points)
         self._after_change()
+        if adjusted:
+            # Sınırlar konmadan önce eklenmiş, varsayılan puanı aralık dışında kalan sorular
+            QMessageBox.information(
+                self, "Puan ayarlandı",
+                f"{adjusted} sorunun varsayılan puanı izin verilen aralığın "
+                f"({format_points(config.MIN_QUESTION_POINTS)}–{format_points(config.MAX_QUESTION_POINTS)}) "
+                "dışındaydı; puanı sınıra çekildi. Gerekirse puan hücresinden değiştirin.",
+            )
 
     def _add_selected(self, *_) -> None:
         indexes = sorted(self.bank_table.selectionModel().selectedRows(), key=QModelIndex.row)

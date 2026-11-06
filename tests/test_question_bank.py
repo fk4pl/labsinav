@@ -53,7 +53,7 @@ def test_valid_drafts_have_no_errors() -> None:
     ("draft", "expected"),
     [
         (mcq_draft(text="   \n "), "Soru metni boş olamaz."),
-        (mcq_draft(default_points=0), "Puan 0'dan büyük"),
+        (mcq_draft(default_points=0), "Puan 0,5 ile 100 arasında olmalı."),
         (mcq_draft(options=[OptionDraft("tek", True)]), "2 ile 6 arasında"),
         (mcq_draft(options=[OptionDraft(str(i), i == 0) for i in range(7)]), "2 ile 6 arasında"),
         (mcq_draft(options=[OptionDraft("a", True), OptionDraft("  ")]), "Boş şık"),
@@ -273,3 +273,29 @@ def test_category_delete_rules(empty_db) -> None:
 
 def test_turkish_lower() -> None:
     assert qb.turkish_lower("IŞIK İĞNE") == "ışık iğne"
+
+
+# ---------------------------------------------------------------------------
+# Puan sınırları (config.MIN_QUESTION_POINTS … config.MAX_QUESTION_POINTS)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("points", [0.5, 1, 10, 99.5, 100])
+def test_points_inside_limits_are_valid(points: float) -> None:
+    assert qb.points_error(points) is None
+    assert qb.validate_draft(mcq_draft(default_points=points)) == []
+
+
+@pytest.mark.parametrize("points", [0, 0.4, -5, 100.5, 1000, float("nan"), float("inf")])
+def test_points_outside_limits_are_rejected(points: float) -> None:
+    assert qb.points_error(points) == "Puan 0,5 ile 100 arasında olmalı."
+    assert "Puan 0,5 ile 100 arasında olmalı." in qb.validate_draft(mcq_draft(default_points=points))
+
+
+def test_create_question_with_too_many_points_fails(empty_db) -> None:
+    with pytest.raises(qb.QuestionBankError, match="0,5 ile 100"):
+        qb.create_question(classic_draft(default_points=150))
+
+
+@pytest.mark.parametrize("given, expected", [(150, 100), (0.1, 0.5), (25, 25), (float("nan"), 0.5)])
+def test_clamp_points(given: float, expected: float) -> None:
+    assert qb.clamp_points(given) == expected

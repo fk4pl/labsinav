@@ -1,7 +1,10 @@
-"""Eğitmen giriş penceresi ve şifre değiştirme penceresi. (Sahibi: B)
+"""Eğitmen giriş penceresi, ilk kurulum penceresi ve şifre değiştirme penceresi. (Sahibi: B)
 
 Uygulama açılınca önce LoginDialog gösterilir; sadece role='instructor' olan kullanıcı
 girebilir. Giriş başarılı olunca dialog.user dolu olur ve ana pencere açılır.
+
+Veri tabanında hiç eğitmen yoksa (ilk açılış) giriş yerine FirstSetupDialog açılır;
+ilk eğitmen hesabı oluşturulunca normal giriş ekranına geçilir.
 """
 
 from PySide6.QtCore import Qt
@@ -16,7 +19,13 @@ from PySide6.QtWidgets import (
 )
 
 from server.db.models import User
-from server.services.auth import PasswordChangeError, authenticate, change_password
+from server.services.auth import (
+    PasswordChangeError,
+    SetupError,
+    authenticate,
+    change_password,
+    create_first_instructor,
+)
 from server.services.event_log import Event, log_event
 
 LOG_DETAIL = "eğitmen uygulaması"
@@ -41,7 +50,7 @@ def _error_label() -> QLabel:
 class LoginDialog(QDialog):
     """Eğitmen girişi. exec() Accepted dönerse self.user giriş yapan eğitmendir."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, username: str = "") -> None:
         super().__init__(parent)
         self.user: User | None = None
         self.setWindowTitle("LabSınav — Eğitmen Girişi")
@@ -70,6 +79,9 @@ class LoginDialog(QDialog):
         self.password_input.returnPressed.connect(self._submit)
         form.addWidget(self.username_input)
         form.addWidget(self.password_input)
+        if username:  # ilk kurulumdan gelindiyse kullanıcı adı hazır yazılı olsun
+            self.username_input.setText(username)
+            self.password_input.setFocus()
 
         self.error_label = _error_label()
         form.addWidget(self.error_label)
@@ -109,6 +121,77 @@ class LoginDialog(QDialog):
 
         log_event(Event.LOGIN, username=username, detail=LOG_DETAIL)
         self.user = user
+        self.accept()
+
+
+class FirstSetupDialog(QDialog):
+    """İlk kurulum: hiç eğitmen yokken ilk eğitmen hesabını oluşturur.
+
+    exec() Accepted dönerse self.username oluşturulan hesabın kullanıcı adıdır.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.username: str | None = None
+        self.setWindowTitle("LabSınav — İlk kurulum")
+        self.setMinimumSize(480, 520)
+
+        card = QFrame()
+        card.setObjectName("card")
+        card.setFixedWidth(400)
+        form = QVBoxLayout(card)
+        form.setContentsMargins(32, 32, 32, 32)
+        form.setSpacing(10)
+
+        title = QLabel("İlk kurulum")
+        title.setObjectName("title")
+        info = QLabel("Henüz eğitmen hesabı yok. Bu bilgisayarda kullanılacak ilk eğitmen hesabını oluşturun.")
+        info.setObjectName("subtitle")
+        info.setWordWrap(True)
+        form.addWidget(title)
+        form.addWidget(info)
+        form.addSpacing(8)
+
+        self.full_name_input = QLineEdit()
+        self.full_name_input.setPlaceholderText("Ad soyad")
+        self.full_name_input.setMaxLength(100)
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Kullanıcı adı")
+        self.username_input.setMaxLength(64)
+        self.password_input = _password_input("Şifre (en az 6 karakter)")
+        self.repeat_input = _password_input("Şifre (tekrar)")
+        self.repeat_input.returnPressed.connect(self._submit)
+        for field in (self.full_name_input, self.username_input, self.password_input, self.repeat_input):
+            form.addWidget(field)
+
+        self.error_label = _error_label()
+        form.addWidget(self.error_label)
+
+        self.create_button = QPushButton("Hesabı oluştur")
+        self.create_button.setAutoDefault(False)
+        self.create_button.clicked.connect(self._submit)
+        form.addWidget(self.create_button)
+
+        note = QLabel("Deneme verisi için: python -m scripts.seed")
+        note.setObjectName("subtitle")
+        note.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addWidget(note)
+
+        outer = QVBoxLayout(self)
+        outer.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    def _submit(self) -> None:
+        self.error_label.hide()
+        try:
+            user = create_first_instructor(
+                self.full_name_input.text(), self.username_input.text(),
+                self.password_input.text(), self.repeat_input.text(),
+            )
+        except SetupError as error:
+            self.error_label.setText(error.message)
+            self.error_label.show()
+            return
+        self.username = user.username
         self.accept()
 
 

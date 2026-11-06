@@ -6,6 +6,9 @@ Nasıl çalışır?
 2. Sonrasında veri tabanına tekrar sorulmaz: sunucudaki olaylar ServerBridge sinyalleriyle
    gelir (bağlandı, koptu, cevap kaydetti, gönderdi, pencereden çıktı, sınav bitti) ve
    sadece ilgili öğrencinin satırı güncellenir. Sinyaller Qt sayesinde UI thread'inde çalışır.
+   TOPLU GÜNCELLEME: 40 öğrenci aynı anda yazarken saniyede yüzlerce sinyal gelebilir.
+   Sinyal geldiğinde sadece bellekteki durum değişir ve öğrenci "kirli" işaretlenir;
+   tablo en fazla UPDATE_INTERVAL_MS'de bir, kirli satırlar için toplu yenilenir.
 3. Geri sayım her saniye ends_at - şimdi ile hesaplanır. Eğitmen uygulaması sunucunun
    kendisi olduğu için saat farkı yoktur.
 
@@ -49,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 WARNING_COLOR = "#d97706"   # turuncu
 LOW_TIME_SECONDS = 5 * 60   # son 5 dakikada geri sayım kırmızı olur
+UPDATE_INTERVAL_MS = 250    # tablo en fazla bu aralıkla yenilenir (toplu güncelleme)
 
 OFFLINE, CONNECTED, IN_EXAM, SUBMITTED = "offline", "connected", "in_exam", "submitted"
 STATUS_TEXT = {OFFLINE: "Çevrimdışı", CONNECTED: "Bağlı", IN_EXAM: "Sınavda", SUBMITTED: "Gönderdi"}
@@ -91,6 +95,8 @@ class LivePanelPage(QWidget):
         self.states: dict[str, StudentState] = {}   # username → durum
         self.rows: dict[str, int] = {}               # username → tablo satırı
         self.badges: dict[str, QLabel] = {}          # username → durum rozeti
+        self.badge_status: dict[str, str] = {}       # username → rozette şu an yazan durum
+        self.dirty: set[str] = set()                 # tabloda henüz yenilenmemiş öğrenciler
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -103,6 +109,11 @@ class LivePanelPage(QWidget):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self._tick)
         self.timer.start()
+
+        self.flush_timer = QTimer(self)
+        self.flush_timer.setSingleShot(True)
+        self.flush_timer.setInterval(UPDATE_INTERVAL_MS)
+        self.flush_timer.timeout.connect(self.flush_pending)
 
         bridge.student_connected.connect(self.on_student_connected)
         bridge.student_disconnected.connect(self.on_student_disconnected)
@@ -182,10 +193,13 @@ class LivePanelPage(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().hide()
+        self._set_column_modes()
+        return self.table
+
+    def _set_column_modes(self) -> None:
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(COL_NAME, QHeaderView.ResizeMode.Stretch)
-        return self.table
 
     # --- Sınav seçimi ---
 
@@ -256,11 +270,16 @@ class LivePanelPage(QWidget):
     # --- Tablo ---
 
     def _fill_table(self) -> None:
+        self.rows, self.badges, self.badge_status = {}, {}, {}
+        self.dirty.clear()  # tablo baştan kuruluyor; bekleyen güncellemeye gerek yok
+        # Satır satır eklemek her seferinde sütun genişliklerini yeniden hesaplatır (40 öğrencide
+        # ~100 ms donma). Satır sayısını bir kerede verip çizimi iş bitene kadar kapatıyoruz.
+        self.table.setUpdatesEnabled(False)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.setRowCount(0)
-        self.rows, self.badges = {}, {}
-        for username in self.states:
-            index = self.table.rowCount()
-            self.table.insertRow(index)
+        self.table.setRowCount(len(self.states))
+        for index, username in enumerate(self.states):
             for column in range(len(COLUMNS)):
                 self.table.setItem(index, column, QTableWidgetItem())
             badge = QLabel()
@@ -268,6 +287,8 @@ class LivePanelPage(QWidget):
             self.table.setCellWidget(index, COL_STATUS, badge)
             self.rows[username], self.badges[username] = index, badge
             self._update_row(username)
+        self._set_column_modes()
+        self.table.setUpdatesEnabled(True)
         self._update_counters()
 
     def _update_row(self, username: str) -> None:
@@ -288,6 +309,9 @@ class LivePanelPage(QWidget):
         focus_item.setForeground(QBrush(QColor(DANGER if state.focus_lost_count else TEXT)))
 
         status = compute_status(state, self._exam_running())
+        if self.badge_status.get(username) == status:
+            return  # setStyleSheet pahalıdır; durum değişmediyse dokunma
+        self.badge_status[username] = status
         badge = self.badges[username]
         badge.setText(STATUS_TEXT[status])
         badge.setStyleSheet(
@@ -438,7 +462,20 @@ class LivePanelPage(QWidget):
         return self.states.get(username)
 
     def _changed(self, username: str) -> None:
-        self._update_row(username)
+        """Öğrenciyi kirli işaretler; tablo kısa süre sonra toplu yenilenir."""
+        self.dirty.add(username)
+        if not self.flush_timer.isActive():
+            self.flush_timer.start()
+
+    def flush_pending(self) -> None:
+        """Bekleyen tüm satır değişikliklerini tabloya yazar ve sayaçları günceller."""
+        self.flush_timer.stop()
+        if not self.dirty:
+            return
+        for username in self.dirty:
+            if username in self.rows:
+                self._update_row(username)
+        self.dirty.clear()
         self._update_counters()
 
     # --- Testler ve dışarısı için okuma ---

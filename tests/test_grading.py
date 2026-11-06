@@ -211,3 +211,12 @@ def test_regrade_after_answer_key_change(exam: SmallExam) -> None:
 
 def test_regrade_exam_without_submissions(exam: SmallExam) -> None:
     assert grading.regrade_exam(exam.exam_id) == 0
+
+
+def test_ungraded_submission_ids(exam: SmallExam) -> None:
+    graded = take_exam(exam, STUDENT, option_id=exam.right_option)
+    waiting = take_exam(exam, STUDENT_2, option_id=exam.right_option)
+    grading.grade_submission(graded)
+    assert grading.ungraded_submission_ids() == [waiting]
+    grading.grade_submission(waiting)
+    assert grading.ungraded_submission_ids() == []

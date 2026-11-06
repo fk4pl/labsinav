@@ -70,6 +70,9 @@ EXAM_TICK_SEC = 1.0
 # Qt thread'inden çağrılan işlemlerin en fazla bekleme süresi (saniye).
 CALL_TIMEOUT_SEC = 30
 
+# Kapanırken yarım kalan arka plan işlerinin (puanlama vb.) bitmesi için beklenen süre (saniye).
+SHUTDOWN_GRACE_SEC = 5
+
 T = TypeVar("T")
 
 
@@ -218,11 +221,13 @@ class WsServer:
             ) as ws_server:
                 self.port = ws_server.sockets[0].getsockname()[1]
                 ticker = asyncio.create_task(self._exam_ticker())
+                self._spawn(self._grade_leftovers())
                 self._ready.set()
                 await self._stop_future
                 ticker.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await ticker
+                await self._finish_background_tasks()
         except OSError as exc:
             self._start_error = exc
             self._ready.set()
@@ -312,9 +317,18 @@ class WsServer:
     async def _start_exam(self, exam_id: int) -> datetime:
         started = await asyncio.to_thread(exam_session.start_exam, exam_id, self.clock())
         await self.log(Event.EXAM_STARTED, exam_id=exam_id, detail=f"Bitiş: {started.ends_at.isoformat()}")
-        for client in self._clients_in_class(started.class_id):
-            await self.send_exam_start(client, exam_id)
+        # Öğrencilere gönderim arka planda yapılır: eğitmen arayüzü 40 öğrencinin
+        # exam_start'ının hazırlanmasını beklemesin (yük testinde bulunan bekleme).
+        self._spawn(self._send_exam_start_to_class(started.class_id, exam_id))
         return started.ends_at
+
+    async def _send_exam_start_to_class(self, class_id: int, exam_id: int) -> None:
+        for client in self._clients_in_class(class_id):
+            try:
+                await self.send_exam_start(client, exam_id)
+            except Exception:
+                # Bir öğrencideki hata diğerlerini engellemesin; öğrenci tekrar girince sınavı alır.
+                logger.exception("exam_start gönderilemedi (%s)", client.student)
 
     async def _extend_exam(self, exam_id: int, minutes: int) -> datetime:
         updated = await asyncio.to_thread(exam_session.extend_exam, exam_id, minutes, self.clock())
@@ -380,6 +394,26 @@ class WsServer:
         """Puanlamayı arka planda, sırayla yapar. Bir hata diğerlerini durdurmaz."""
         if submission_ids:
             self._spawn(self._grade_all(submission_ids))
+
+    async def _grade_leftovers(self) -> None:
+        """Açılışta: önceki çalışmada puanlanamadan kalmış kâğıtları puanlar."""
+        try:
+            leftovers = await asyncio.to_thread(grading.ungraded_submission_ids)
+        except Exception:
+            logger.exception("Puanlanmamış kâğıtlar okunamadı")
+            return
+        if leftovers:
+            logger.info("Puanlanmamış %d kâğıt puanlanıyor", len(leftovers))
+            await self._grade_all(leftovers)
+
+    async def _finish_background_tasks(self) -> None:
+        """Kapanırken: devam eden puanlamaların bitmesini kısa bir süre bekler."""
+        pending = list(self._background_tasks)
+        if not pending:
+            return
+        _, still_running = await asyncio.wait(pending, timeout=SHUTDOWN_GRACE_SEC)
+        for task in still_running:
+            task.cancel()  # kalanlar bir sonraki açılışta _grade_leftovers ile puanlanır
 
     async def _grade_all(self, submission_ids: list[int]) -> None:
         for submission_id in submission_ids:

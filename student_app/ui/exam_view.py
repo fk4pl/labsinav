@@ -282,7 +282,7 @@ class ExamView(QWidget):
         self._pages = []
         for number, question in enumerate(questions, start=1):
             page = QuestionPage(question, number, len(questions))
-            page.editor.changed.connect(lambda qid=question.id, p=page: self._on_answer_changed(qid, p))
+            page.answer_changed.connect(self._on_answer_changed)
             self.question_stack.addWidget(page)
             self._pages.append(page)
         self.grid.build(len(questions))
@@ -337,14 +337,20 @@ class ExamView(QWidget):
     # Cevap kaydetme
     # ------------------------------------------------------------------
 
-    def _on_answer_changed(self, question_id: int, page: QuestionPage) -> None:
+    def _on_answer_changed(self, question_id: int) -> None:
         if self._locked:
+            return
+        page = self._page_for(question_id)
+        if page is None:
             return
         self.state.set_answer(question_id, page.editor.value(), self.clock.now())
         self._save_backup()
         self._refresh_grid()
         self._refresh_save_status()
         self._save_timer.start()  # her değişiklikte 2 sn baştan başlar (debounce)
+
+    def _page_for(self, question_id: int) -> QuestionPage | None:
+        return next((p for p in self._pages if p.question.id == question_id), None)
 
     def flush_saves(self) -> None:
         """Kaydedilmemiş cevapları hemen gönderir (bağlıysak)."""

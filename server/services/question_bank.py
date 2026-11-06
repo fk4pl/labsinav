@@ -11,6 +11,7 @@ buradaki fonksiyonları çağırır. Fonksiyonlar ORM nesnesi değil, basit veri
 - Hatalar QuestionBankError ile, kullanıcıya gösterilebilir Türkçe mesajla bildirilir.
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
@@ -28,12 +29,12 @@ from server.db.models import (
     utcnow,
 )
 from server.db.session import get_session, write_session
+from shared import config
 from shared.protocol import OptionForStudent, QuestionForStudent
 
 MIN_OPTIONS = 2
 MAX_OPTIONS = 6
 PREVIEW_LENGTH = 80
-MAX_POINTS = 1000
 MAX_CATEGORY_NAME = 100
 
 # Arayüzde gösterilen tür adları
@@ -108,13 +109,36 @@ class CategoryRow:
 # Doğrulama
 # ---------------------------------------------------------------------------
 
+def points_error(points: float) -> str | None:
+    """Soru puanı geçerli değilse Türkçe hata mesajı, geçerliyse None.
+
+    Sınır: config.MIN_QUESTION_POINTS … config.MAX_QUESTION_POINTS (NaN ve sonsuz da reddedilir).
+    """
+    low, high = config.MIN_QUESTION_POINTS, config.MAX_QUESTION_POINTS
+    if not math.isfinite(points) or not low <= points <= high:
+        return f"Puan {_points_text(low)} ile {_points_text(high)} arasında olmalı."
+    return None
+
+
+def clamp_points(points: float) -> float:
+    """Puanı izin verilen aralığa çeker (ör. eski veride 150 puanlı soru → 100)."""
+    if not math.isfinite(points):
+        return config.MIN_QUESTION_POINTS
+    return min(max(points, config.MIN_QUESTION_POINTS), config.MAX_QUESTION_POINTS)
+
+
+def _points_text(value: float) -> str:
+    return f"{value:g}".replace(".", ",")  # 0.5 → "0,5"
+
+
 def validate_draft(draft: QuestionDraft) -> list[str]:
     """Sorudaki hataları Türkçe bir liste olarak döner. Liste boşsa soru geçerlidir."""
     errors: list[str] = []
     if not draft.text.strip():
         errors.append("Soru metni boş olamaz.")
-    if not 0 < draft.default_points <= MAX_POINTS:
-        errors.append(f"Puan 0'dan büyük ve en fazla {MAX_POINTS} olmalı.")
+    error = points_error(draft.default_points)
+    if error:
+        errors.append(error)
 
     if draft.type == "mcq":
         errors.extend(_validate_options(draft.options))

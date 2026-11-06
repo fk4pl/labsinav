@@ -118,6 +118,20 @@ def regrade_exam(exam_id: int) -> int:
     return len(submission_ids)
 
 
+def ungraded_submission_ids() -> list[int]:
+    """Gönderilmiş ama hiç puanlanmamış (total_score boş) kâğıtlar.
+
+    Sunucu açılışta bunları puanlar: uygulama, gönderimden hemen sonra (puanlama
+    bitmeden) kapanmış veya çökmüş olabilir.
+    """
+    with get_session() as session:
+        return list(session.scalars(
+            select(Submission.id)
+            .where(Submission.status == "submitted", Submission.total_score.is_(None))
+            .order_by(Submission.id)
+        ))
+
+
 # ---------------------------------------------------------------------------
 # Elle puan
 # ---------------------------------------------------------------------------

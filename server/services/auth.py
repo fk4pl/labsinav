@@ -73,3 +73,65 @@ def change_password(user_id: int, old_password: str, new_password: str) -> None:
         if user is None:
             raise PasswordChangeError("Kullanıcı bulunamadı.")
         user.password_hash = new_hash
+
+
+# ---------------------------------------------------------------------------
+# İlk kurulum: veri tabanında hiç eğitmen yoksa ilk eğitmen hesabı oluşturulur
+# ---------------------------------------------------------------------------
+
+MAX_USERNAME_LENGTH = 64
+MAX_FULL_NAME_LENGTH = 100
+
+
+class SetupError(Exception):
+    """İlk eğitmen hesabı oluşturulamadı. message: kullanıcıya gösterilebilir Türkçe açıklama."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+def has_instructor() -> bool:
+    """Veri tabanında en az bir eğitmen hesabı var mı?"""
+    with get_session() as session:
+        return session.scalar(select(User.id).where(User.role == "instructor").limit(1)) is not None
+
+
+def setup_errors(full_name: str, username: str, password: str, password_again: str) -> list[str]:
+    """İlk kurulum formundaki hatalar (boş liste = sorun yok). Veri tabanına bakmaz."""
+    errors = []
+    if not full_name.strip():
+        errors.append("Ad soyad boş olamaz.")
+    elif len(full_name.strip()) > MAX_FULL_NAME_LENGTH:
+        errors.append(f"Ad soyad en fazla {MAX_FULL_NAME_LENGTH} karakter olabilir.")
+    name = username.strip()
+    if len(name) < 3 or len(name) > MAX_USERNAME_LENGTH:
+        errors.append(f"Kullanıcı adı 3 ile {MAX_USERNAME_LENGTH} karakter arasında olmalı.")
+    elif any(ch.isspace() for ch in name):
+        errors.append("Kullanıcı adında boşluk olamaz.")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        errors.append(f"Şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.")
+    elif password != password_again:
+        errors.append("Şifreler birbiriyle aynı değil.")
+    return errors
+
+
+def create_first_instructor(full_name: str, username: str, password: str, password_again: str) -> User:
+    """Hiç eğitmen yoksa ilk eğitmen hesabını oluşturur ve döner. Aksi hâlde SetupError."""
+    errors = setup_errors(full_name, username, password, password_again)
+    if errors:
+        raise SetupError("\n".join(errors))
+    password_hash = hash_password(password)  # bcrypt yavaştır: kilidin DIŞINDA
+    with write_session() as session:
+        # Kilidin içinde tekrar bakılır: aynı anda iki kurulum yapılamasın.
+        if session.scalar(select(User.id).where(User.role == "instructor").limit(1)) is not None:
+            raise SetupError("Zaten bir eğitmen hesabı var; giriş ekranını kullanın.")
+        if session.scalar(select(User.id).where(User.username == username.strip())) is not None:
+            raise SetupError("Bu kullanıcı adı kullanılıyor.")
+        user = User(
+            username=username.strip(), full_name=full_name.strip(),
+            password_hash=password_hash, role="instructor",
+        )
+        session.add(user)
+        session.flush()
+        return user

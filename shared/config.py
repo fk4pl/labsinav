@@ -17,6 +17,12 @@ MAX_MESSAGE_BYTES = 1_000_000     # tek bir WebSocket mesajının üst sınırı
 PING_INTERVAL_SEC = 10            # istemci bu aralıkla ping yollar
 SAVE_DEBOUNCE_SEC = 2             # otomatik kayıt gecikmesi
 
+# --- Puan ---
+# Bir sorunun puanı (soru bankasındaki varsayılan puan ve sınavdaki puan) bu aralıkta olmalı.
+# Hem arayüzdeki sayı kutuları hem servislerdeki doğrulama bu sabitleri kullanır.
+MIN_QUESTION_POINTS = 0.5
+MAX_QUESTION_POINTS = 100.0
+
 # --- Güvenlik ---
 BCRYPT_ROUNDS = 12                # testlerde hız için düşürülür
 

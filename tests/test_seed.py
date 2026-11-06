@@ -56,3 +56,26 @@ def test_seed_is_repeatable(seeded_db) -> None:
     with get_session() as session:
         assert session.scalar(select(func.count()).select_from(User)) == 31
         assert session.scalar(select(func.count()).select_from(SchoolClass)) == 2
+
+
+def test_seed_with_80_students_splits_classes_in_half(empty_db) -> None:
+    with get_session() as session:
+        seed(session, student_count=80)
+    with get_session() as session:
+        students = session.scalars(
+            select(User).where(User.role == "student").order_by(User.username)
+        ).all()
+        assert [s.username for s in students] == [str(n) for n in range(260101001, 260101081)]
+        class_names = [s.school_class.name for s in students]
+        assert class_names[:40] == ["1. Öğretim A"] * 40
+        assert class_names[40:] == ["1. Öğretim B"] * 40
+        # İlk 30 isim listeden gelir; hepsinin adı ve soyadı vardır
+        assert students[0].full_name == "Ahmet Yılmaz"
+        assert all(len(s.full_name.split()) == 2 for s in students)
+
+
+def test_seed_students_argument() -> None:
+    from scripts.seed import parse_args
+
+    assert parse_args([]).students == 30
+    assert parse_args(["--students", "80"]).students == 80

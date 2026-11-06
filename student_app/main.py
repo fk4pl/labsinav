@@ -27,6 +27,7 @@ from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QStackedWidget
 
 from server.net.discovery import discover_server
+from shared.app_errors import install_error_handler, setup_logging
 from shared.protocol import (
     ErrorCode,
     ExamEnd,
@@ -119,9 +120,7 @@ class StudentWindow(QMainWindow):
         b.login_failed.connect(self._on_login_failed)
         b.connection_error.connect(self._on_login_failed)
         b.connection_lost.connect(self._back_to_login)
-        b.session_replaced.connect(
-            lambda: self._back_to_login("Bu hesapla başka bir bilgisayardan giriş yapıldı.")
-        )
+        b.session_replaced.connect(self._on_session_replaced)
         b.connection_changed.connect(self.exam_view.set_connection_state)
         b.connection_changed.connect(self.waiting_page.set_connection_state)
         b.exam_started.connect(self._on_exam_started)
@@ -133,12 +132,16 @@ class StudentWindow(QMainWindow):
 
     def _connect_exam_view(self) -> None:
         self.exam_view.save_requested.connect(self._on_save_requested)
-        self.exam_view.submit_requested.connect(
-            lambda exam_id: self.backend.request(MsgType.SUBMIT, SubmitRequest(exam_id=exam_id))
-        )
+        self.exam_view.submit_requested.connect(self._on_submit_requested)
         self.exam_view.focus_lost.connect(self.backend.send_focus_lost)
         self.exam_view.focus_lost.connect(self._on_focus_lost)
         self.exam_view.expired_offline.connect(self._on_expired_offline)
+
+    def _on_session_replaced(self) -> None:
+        self._back_to_login("Bu hesapla başka bir bilgisayardan giriş yapıldı.")
+
+    def _on_submit_requested(self, exam_id: int) -> None:
+        self.backend.request(MsgType.SUBMIT, SubmitRequest(exam_id=exam_id))
 
     def _create_zoom_shortcuts(self) -> None:
         if self.zoom is None:
@@ -338,10 +341,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    setup_logging("student")
     args = parse_args(sys.argv[1:])
     app = QApplication(sys.argv)
     app.setApplicationName("LabSınav Öğrenci")
+    install_error_handler()
     zoom = FontZoom(app, FULL_STYLESHEET)
 
     if args.demo:

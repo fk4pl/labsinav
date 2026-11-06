@@ -134,11 +134,22 @@ def question_status(answered: bool, marked: bool) -> str:
 
 
 class QuestionButton(QPushButton):
-    """Soru numarası butonu. Cevaplanmış + işaretli soruda sağ üst köşeye turuncu bayrak çizer."""
+    """Soru numarası butonu. Cevaplanmış + işaretli soruda sağ üst köşeye turuncu bayrak çizer.
 
-    def __init__(self, text: str, parent: QWidget | None = None) -> None:
+    Tıklanınca kendi sırasını (index) index_clicked sinyaliyle bildirir; böylece
+    bağlantı için lambda gerekmez.
+    """
+
+    index_clicked = Signal(int)
+
+    def __init__(self, text: str, index: int, parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
+        self.index = index
         self.flagged = False
+        self.clicked.connect(self._emit_index)
+
+    def _emit_index(self) -> None:
+        self.index_clicked.emit(self.index)
 
     def set_flagged(self, flagged: bool) -> None:
         self.flagged = flagged
@@ -193,10 +204,10 @@ class QuestionGrid(QWidget):
             button.deleteLater()
         self._buttons = []
         for index in range(count):
-            button = QuestionButton(str(index + 1))
+            button = QuestionButton(str(index + 1), index)
             button.setObjectName("questionNumber")
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            button.clicked.connect(lambda _=False, i=index: self.question_clicked.emit(i))
+            button.index_clicked.connect(self.question_clicked)  # sinyali sinyale bağlamak: aynen iletir
             self._grid.addWidget(button, index // GRID_COLUMNS, index % GRID_COLUMNS)
             self._buttons.append(button)
 
@@ -368,7 +379,12 @@ def make_editor(question: QuestionForStudent) -> AnswerEditor:
 # ----------------------------------------------------------------------
 
 class QuestionPage(QScrollArea):
-    """Soru başlığı + metni + cevap alanı. Uzun sorular için kaydırılabilir."""
+    """Soru başlığı + metni + cevap alanı. Uzun sorular için kaydırılabilir.
+
+    Cevap değişince answer_changed(soru id) sinyali yayılır.
+    """
+
+    answer_changed = Signal(int)
 
     def __init__(self, question: QuestionForStudent, number: int, total: int,
                  parent: QWidget | None = None) -> None:
@@ -396,9 +412,13 @@ class QuestionPage(QScrollArea):
         layout.addWidget(text)
 
         self.editor = make_editor(question)
+        self.editor.changed.connect(self._emit_answer_changed)
         layout.addWidget(self.editor)
         layout.addStretch()
         self.setWidget(content)
+
+    def _emit_answer_changed(self) -> None:
+        self.answer_changed.emit(self.question.id)
 
     def set_marked(self, marked: bool, number: int, total: int) -> None:
         points = f"{self.question.points:g}"

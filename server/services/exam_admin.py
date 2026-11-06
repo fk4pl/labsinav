@@ -33,7 +33,7 @@ from server.db.models import (
 )
 from server.db.session import get_session, write_session
 from server.services.event_log import Event
-from server.services.question_bank import MAX_POINTS, QuestionRow, list_questions, make_preview
+from server.services.question_bank import QuestionRow, list_questions, make_preview, points_error
 
 MAX_TITLE_LENGTH = 200
 MAX_DURATION_MINUTES = 600
@@ -241,8 +241,11 @@ def validate_exam_draft(draft: ExamDraft) -> list[str]:
     ids = [q.question_id for q in draft.questions]
     if len(ids) != len(set(ids)):
         errors.append("Aynı soru sınava iki kez eklenemez.")
-    if any(not 0 < q.points <= MAX_POINTS for q in draft.questions):
-        errors.append(f"Her sorunun puanı 0'dan büyük, en fazla {MAX_POINTS} olmalı.")
+    for number, question in enumerate(draft.questions, start=1):
+        error = points_error(question.points)
+        if error:
+            errors.append(f"{number}. soru: {error}")
+            break  # aynı mesajı her soru için tekrarlamayalım
     return errors
 
 

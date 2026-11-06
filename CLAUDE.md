@@ -128,6 +128,7 @@ event_logs(id, at, event, username, exam_id, ip, detail)
 
 ## Puanlama
 
+- Soru puanı (soru bankası ve sınav) `config.MIN_QUESTION_POINTS`–`config.MAX_QUESTION_POINTS` (0,5–100) aralığında olmalı.
 - `mcq`: seçilen şık doğruysa sorunun puanı, değilse 0.
 - `classic`: cevap normalize edilir (baş/son boşluk, büyük-küçük harf, Türkçe İ/ı dahil, çoklu boşluk, sondaki noktalama)
   ve kabul edilen cevaplardan biriyle eşleşirse tam puan. Eğitmen sonuç ekranından elle puan değiştirebilir.
@@ -160,6 +161,7 @@ event_logs(id, at, event, username, exam_id, ip, detail)
 ```
 pip install -r requirements.txt
 python -m scripts.seed                 # örnek eğitmen, sınıf, 30 öğrenci, 20 soru
+python -m scripts.seed --students 80   # 80 öğrenci (40 A + 40 B), yük testi için
 python -m instructor_app.main          # eğitmen uygulaması (sunucuyu da başlatır)
 python -m student_app.main             # öğrenci uygulaması
 python -m scripts.fake_students -n 30  # 30 sahte öğrenciyle yük testi
