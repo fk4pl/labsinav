@@ -1,0 +1,118 @@
+@startuml class
+hide circle
+hide methods
+skinparam classAttributeIconSize 0
+skinparam linetype polyline
+skinparam dpi 200
+skinparam defaultFontSize 13
+skinparam nodesep 70
+skinparam ranksep 110
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #34495E
+  ArrowColor #34495E
+}
+left to right direction
+class User {
+  id : int
+  class_id : int | None
+  full_name : str
+  password_hash : str
+  role : str
+  username : str
+}
+class SchoolClass {
+  id : int
+  name : str
+}
+class Category {
+  id : int
+  name : str
+}
+class Question {
+  id : int
+  category_id : int | None
+  created_at : datetime
+  default_points : float
+  is_archived : bool
+  text : str
+  type : str
+  updated_at : datetime
+}
+class QuestionOption {
+  id : int
+  question_id : int
+  is_correct : bool
+  order_index : int
+  text : str
+}
+class ClassicAcceptedAnswer {
+  id : int
+  question_id : int
+  answer : str
+}
+class Exam {
+  id : int
+  class_id : int | None
+  created_by : int | None
+  duration_minutes : int
+  ends_at : datetime | None
+  started_at : datetime | None
+  status : str
+  title : str
+  weight_complexity : float
+  weight_tests : float
+}
+class ExamQuestion {
+  exam_id : int
+  question_id : int
+  order_index : int
+  points : float
+}
+class Submission {
+  id : int
+  exam_id : int
+  student_id : int
+  auto_submitted : bool
+  ip : str | None
+  started_at : datetime
+  status : str
+  submitted_at : datetime | None
+  total_score : float | None
+}
+class Answer {
+  id : int
+  question_id : int
+  selected_option_id : int | None
+  submission_id : int
+  code : str | None
+  is_correct : bool | None
+  is_manual : bool
+  points_awarded : float | None
+  text_answer : str | None
+  updated_at : datetime
+}
+class EventLog {
+  id : int
+  at : datetime
+  detail : str | None
+  event : str
+  exam_id : int | None
+  ip : str | None
+  username : str | None
+}
+User "0..*" -- "0..1" SchoolClass : school_class / students
+Question "0..*" --> "0..1" Category : category
+Question "1" *-- "0..*" QuestionOption : options
+Question "1" *-- "0..*" ClassicAcceptedAnswer : accepted_answers
+Exam "1" *-- "1..*" ExamQuestion : exam_questions
+ExamQuestion "0..*" --> "1" Question : question
+Exam "0..*" --> "0..1" SchoolClass : school_class
+Exam "0..*" .[norank].> "0..1" User : created_by
+Submission "0..*" --> "1" Exam : exam
+Submission "0..*" --> "1" User : student
+Submission "1" *-- "0..*" Answer : answers
+Answer "0..*" --> "1" Question : question
+Answer "0..*" ..> "0..1" QuestionOption : selected_option_id
+note bottom of EventLog : Yabancı anahtar yok;\nusername ve exam_id metin/sayı olarak tutulur.
+@enduml
