@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="sekil1" name="Şekil 1 - Sistem mimarisi">
+    <mxGraphModel dx="800" dy="520" grid="1" gridSize="5" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="740" pageHeight="480" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Sol çerçeve: Eğitmen uygulaması (tek gri dolgu) -->
+        <mxCell id="frame" value="&lt;b&gt;Eğitmen Uygulaması (sunucu)&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#000000;strokeWidth=1.5;fontFamily=Helvetica;fontSize=12;fontColor=#000000;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="300" height="440" as="geometry" />
+        </mxCell>
+
+        <!-- 1) Arayüz -->
+        <mxCell id="ui" value="Arayüz (PySide6)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;fontFamily=Helvetica;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="70" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- 2) Sunucu thread'i -->
+        <mxCell id="srv" value="Sunucu thread'i&lt;br&gt;(asyncio + websockets)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;fontFamily=Helvetica;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="180" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- 3) Servisler -->
+        <mxCell id="svc" value="Servisler&lt;br&gt;(server/services)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;fontFamily=Helvetica;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="290" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- 4) SQLite (silindir) -->
+        <mxCell id="db" value="SQLite&lt;br&gt;veri tabanı" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFFFFF;strokeColor=#000000;fontFamily=Helvetica;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="110" y="370" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- 5) Öğrenci uygulaması: arkada 2 gölge kutu (çokluk) -->
+        <mxCell id="stu_shadow2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="565" y="160" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stu_shadow1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="555" y="170" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stu" value="Öğrenci Uygulaması × N" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;strokeWidth=1.5;fontFamily=Helvetica;fontSize=12;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="545" y="180" width="150" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Arayüz <-> Sunucu thread'i: Qt Signal -->
+        <mxCell id="e_signal" value="Qt Signal" style="endArrow=block;endFill=1;startArrow=block;startFill=1;html=1;rounded=0;strokeColor=#000000;strokeWidth=1.5;fontFamily=Helvetica;fontSize=12;fontColor=#000000;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ui" target="srv">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="38" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Sunucu thread'i -> Servisler -->
+        <mxCell id="e_srv_svc" value="" style="endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#000000;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="srv" target="svc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Servisler -> SQLite -->
+        <mxCell id="e_svc_db" value="" style="endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#000000;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="svc" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arayüz -> Servisler: çerçevenin sol iç kenarından (x=35) iner -->
+        <mxCell id="e_ui_svc" value="" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#000000;strokeWidth=1.5;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ui" target="svc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="35" y="100" />
+              <mxPoint x="35" y="315" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Sunucu thread'i <-> Öğrenci: WebSocket (y=200) -->
+        <mxCell id="e_ws" value="LAN / WiFi — WebSocket :8765" style="endArrow=block;endFill=1;startArrow=block;startFill=1;html=1;rounded=0;strokeColor=#000000;strokeWidth=1.5;fontFamily=Helvetica;fontSize=12;fontColor=#000000;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.3333;exitDx=0;exitDy=0;entryX=0;entryY=0.3333;entryDx=0;entryDy=0;" edge="1" parent="1" source="srv" target="stu">
+          <mxGeometry x="0.12" relative="1" as="geometry">
+            <mxPoint x="0" y="-14" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Sunucu thread'i <-> Öğrenci: UDP keşif (y=225, kesik çizgi) -->
+        <mxCell id="e_udp" value="UDP broadcast :50555 (keşif)" style="endArrow=block;endFill=1;startArrow=block;startFill=1;dashed=1;html=1;rounded=0;strokeColor=#000000;strokeWidth=1.5;fontFamily=Helvetica;fontSize=12;fontColor=#000000;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="srv" target="stu">
+          <mxGeometry x="0.12" relative="1" as="geometry">
+            <mxPoint x="0" y="16" as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
