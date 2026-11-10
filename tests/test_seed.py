@@ -79,3 +79,16 @@ def test_seed_students_argument() -> None:
 
     assert parse_args([]).students == 30
     assert parse_args(["--students", "80"]).students == 80
+
+
+def test_load_demo_data_resets_and_seeds(seeded_db) -> None:
+    """Eğitmen uygulamasındaki "Örnek veri yükle" ile aynı fonksiyon."""
+    from scripts.seed import load_demo_data
+    from server.services.auth import authenticate
+
+    with get_session() as session:  # sonradan eklenen veri silinmeli
+        session.add(SchoolClass(name="Fazla sınıf"))
+    counts = load_demo_data(student_count=4)
+    assert counts == {"kullanıcı": 5, "sınıf": 2, "kategori": 3, "soru": 20, "sınav": 1}
+    assert authenticate("egitmen", "egitmen123") is not None
+    assert authenticate("260101001", "260101001") is not None

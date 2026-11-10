@@ -5,3 +5,4 @@ logs/
 dist/
 build/
 *.spec
+!build_tools/*.spec

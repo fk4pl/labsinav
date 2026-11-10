@@ -1,4 +1,5 @@
 """Eğitmen uygulaması: python -m instructor_app.main
+(--smoke-test: paketleme kontrolü, geçici veri tabanıyla açılıp hemen çıkar)
 
 Açılış sırası: veri tabanı hazırlanır → (hiç eğitmen yoksa) ilk kurulum penceresi →
 eğitmen giriş penceresi → (giriş başarılıysa) WebSocket sunucusu ve keşif dinleyicisi
@@ -6,15 +7,20 @@ başlar → ana pencere açılır.
 Giriş penceresi kapatılırsa sunucu hiç açılmadan uygulama biter.
 """
 
+import argparse
 import logging
 import sys
+import tempfile
+from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QTabWidget
 
 from instructor_app.server_bridge import ServerBridge
+from instructor_app.ui.data_menu import DataMenu
 from instructor_app.ui.exam_builder import ExamBuilderPage
+from instructor_app.ui.firewall_prompt import FirewallPrompt
 from instructor_app.ui.live_panel import LivePanelPage
 from instructor_app.ui.login import ChangePasswordDialog, FirstSetupDialog, LoginDialog
 from instructor_app.ui.logs import LogsPage
@@ -22,13 +28,15 @@ from instructor_app.ui.question_bank import QuestionBankPage
 from instructor_app.ui.results import ResultsPage
 from instructor_app.ui.students import StudentsPage
 from server.db.models import User
-from server.db.session import init_db
-from server.services.auth import has_instructor
+from server.db.session import configure as configure_db
+from server.db.session import get_engine, init_db
+from server.services.auth import has_instructor, hash_password
 from server.net.discovery import DiscoveryResponder, get_local_ip
 from server.net.ws_server import ConnectedStudent, WsServer, start_server
 from server.services import exam_admin
 from shared import config
 from shared.app_errors import install_error_handler, setup_logging
+from shared.python_check import warn_if_unsupported_python
 from shared.theme import STYLESHEET
 
 STATUS_UPDATE_MS = 250  # durum çubuğu (bağlı öğrenci sayısı) en fazla bu aralıkla yenilenir
@@ -59,6 +67,10 @@ class MainWindow(QMainWindow):
 
         settings_menu = self.menuBar().addMenu("Ayarlar")
         settings_menu.addAction("Şifre değiştir…", self.change_password)
+        settings_menu.addSeparator()
+        self.data_menu = DataMenu(self, server)
+        self.data_menu.add_actions(settings_menu)
+        self.firewall_prompt = FirewallPrompt(self)
 
         self.status_label = QLabel()
         self.statusBar().addWidget(QLabel(f"Eğitmen: {user.full_name}"))
@@ -134,12 +146,42 @@ def _show_fatal(message: str) -> None:
     QMessageBox.critical(None, "LabSınav", message)
 
 
-def main() -> int:
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="LabSınav eğitmen uygulaması")
+    parser.add_argument("--smoke-test", action="store_true",
+                        help="paketleme kontrolü: veri tabanını ve pencereyi deneyip hemen çık")
+    args, _unknown = parser.parse_known_args(argv)  # Qt'nin kendi argümanlarını yoksay
+    return args
+
+
+def smoke_test() -> int:
+    """Paketlenmiş .exe'nin açılabildiğini kontrol eder (GitHub Actions kullanır).
+
+    Gerçek veri tabanına dokunmaz: geçici klasörde boş bir veri tabanı oluşturulur.
+    Modüller, Qt eklentileri, SQLite ve bcrypt yüklenebiliyorsa 0 döner.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        configure_db(Path(temp_dir) / "smoke.db")
+        init_db()
+        has_instructor()
+        hash_password("duman-testi")
+        dialog = LoginDialog()
+        dialog.deleteLater()
+        get_engine().dispose()  # Windows: geçici dosya silinebilsin
+    logging.info("Duman testi başarılı")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     setup_logging("instructor")
-    app = QApplication(sys.argv)
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("LabSınav Eğitmen")
-    install_error_handler()
     app.setStyleSheet(STYLESHEET)
+    if args.smoke_test:
+        return smoke_test()
+    install_error_handler()
+    warn_if_unsupported_python()
 
     config.ensure_runtime_dirs()
     init_db()
@@ -179,6 +221,8 @@ def main() -> int:
 
     window = MainWindow(server, bridge, login.user)
     window.show()
+    # Pencere ekrana geldikten sonra (Windows'ta) güvenlik duvarı kuralları kontrol edilir.
+    QTimer.singleShot(0, window.firewall_prompt.check)
     exit_code = app.exec()
 
     if discovery is not None:

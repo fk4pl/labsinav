@@ -4,6 +4,7 @@
     python -m student_app.main --demo                  sunucusuz deneme (cevaplar bellekte)
     python -m student_app.main --demo --demo-minutes 6 5 ve 1 dakika uyarılarını hızlı görmek için
     python -m student_app.main --no-kiosk              geliştirme: tam ekran ve kapatma engeli kapalı
+    python -m student_app.main --smoke-test            paketleme kontrolü: pencereyi oluşturup çık
 
 Sınav modu (kiosk): sınav başlayınca pencere tam ekran olur; sınav bitene kadar kapatılamaz
 (×, Alt+F4) ve küçültülemez. Ctrl+Alt+Del / Alt+Tab işletim sistemi düzeyindedir, engellenemez;
@@ -22,7 +23,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QStackedWidget
 
@@ -39,9 +40,14 @@ from shared.protocol import (
     SubmitRequest,
     UserInfo,
 )
-from student_app.demo import DemoBackend
+from shared.python_check import warn_if_unsupported_python
+from shared.theme import ASSETS
+from student_app.demo import DemoBackend, load_demo_exam
+from student_app.last_server import default_path as default_last_server_path
+from student_app.last_server import is_reachable, load_last_server, save_last_server
 from student_app.local_backup import default_backup_dir
 from student_app.net.client import ServerClient
+from student_app.net.server_clock import ServerClock
 from student_app.ui.exam_view import ExamView
 from student_app.ui.finished import FinishedPage
 from student_app.ui.login import LoginPage
@@ -70,18 +76,30 @@ KIOSK_REFOCUS_MS = 500
 
 
 class DiscoveryThread(QThread):
-    """discover_server() bloklayan bir fonksiyon; arayüz donmasın diye ayrı thread'de çalışır."""
+    """discover_server() bloklayan bir fonksiyon; arayüz donmasın diye ayrı thread'de çalışır.
+
+    Otomatik bulma başarısız olursa son bağlanılan sunucu (varsa) denenir.
+    """
 
     finished_with_result = Signal(object)  # (host, port) veya None
 
+    def __init__(self, last_server: tuple[str, int] | None, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.last_server = last_server
+
     def run(self) -> None:
-        self.finished_with_result.emit(discover_server())
+        result = discover_server()
+        if result is None and self.last_server is not None and is_reachable(*self.last_server):
+            result = self.last_server
+        self.finished_with_result.emit(result)
 
 
 class StudentWindow(QMainWindow):
     def __init__(self, backend: ServerClient | DemoBackend, zoom: FontZoom | None = None,
-                 kiosk: bool = False, backup_dir: Path | None = None) -> None:
-        """kiosk: sınav sırasında tam ekran + kapatma engeli. backup_dir: yerel yedek klasörü (None = yedek yok)."""
+                 kiosk: bool = False, backup_dir: Path | None = None,
+                 last_server_path: Path | None = None) -> None:
+        """kiosk: sınav sırasında tam ekran + kapatma engeli. backup_dir: yerel yedek klasörü (None = yedek yok).
+        last_server_path: son bağlanılan sunucunun kaydedildiği dosya (None = hatırlanmaz)."""
         super().__init__()
         self.setWindowTitle("LabSınav — Öğrenci")
         self.resize(1100, 720)
@@ -90,6 +108,8 @@ class StudentWindow(QMainWindow):
         self.kiosk = kiosk
         self._user: UserInfo | None = None
         self._discovery: DiscoveryThread | None = None
+        self._last_server_path = last_server_path
+        self._login_server: tuple[str, int] | None = None  # giriş denenen sunucu
         self._retry_timer = QTimer(self)
         self._retry_timer.setInterval(DISCOVERY_RETRY_MS)
         self._retry_timer.timeout.connect(self._retry_discovery)
@@ -97,6 +117,9 @@ class StudentWindow(QMainWindow):
         self.login_page = LoginPage()
         self.login_page.login_requested.connect(self._on_login_requested)
         self.login_page.rediscover_requested.connect(self.start_discovery)
+        last = self._load_last_server()
+        if last is not None:
+            self.login_page.set_address_hint(*last)
         self.waiting_page = WaitingPage()
         self.exam_view = ExamView(backend.clock, backup_dir)
         self.finished_page = FinishedPage()
@@ -180,8 +203,13 @@ class StudentWindow(QMainWindow):
     def _is_discovering(self) -> bool:
         return self._discovery is not None and self._discovery.isRunning()
 
+    def _load_last_server(self) -> tuple[str, int] | None:
+        if self._last_server_path is None:
+            return None
+        return load_last_server(self._last_server_path)
+
     def _run_discovery(self) -> None:
-        self._discovery = DiscoveryThread(self)
+        self._discovery = DiscoveryThread(self._load_last_server(), self)
         self._discovery.finished_with_result.connect(self._on_discovery_result)
         self._discovery.start()
 
@@ -193,6 +221,7 @@ class StudentWindow(QMainWindow):
 
     def _on_login_requested(self, host: str, port: int, username: str, password: str) -> None:
         self.login_page.set_busy(True)
+        self._login_server = (host, port)
         self.backend.login(host, port, username, password)
 
     def _on_login_failed(self, message: str) -> None:
@@ -204,6 +233,8 @@ class StudentWindow(QMainWindow):
         if self._user is not None and self._user.username != user.username:
             self.exam_view.reset()  # başka öğrenci: öncekinin cevapları taşınmasın
         self._user = user
+        if self._last_server_path is not None and self._login_server is not None:
+            save_last_server(self._last_server_path, *self._login_server)
         self.login_page.set_busy(False)
         self.login_page.reset_password()
         self.waiting_page.show_user(user)
@@ -336,16 +367,36 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--demo-minutes", type=float, default=30, help="demo sınav süresi (dakika)")
     parser.add_argument("--no-kiosk", action="store_true",
                         help="geliştirme/test: tam ekran ve kapatma engeli kapalı")
+    parser.add_argument("--smoke-test", action="store_true",
+                        help="paketleme kontrolü: pencereyi oluşturup hemen çık")
     args, _unknown = parser.parse_known_args(argv)  # Qt'nin kendi argümanlarını yoksay
     return args
 
 
-def main() -> int:
+def smoke_test() -> int:
+    """Paketlenmiş .exe'nin açılabildiğini kontrol eder (GitHub Actions kullanır).
+
+    Tüm modüller, Qt eklentileri ve veri dosyaları yüklenebiliyorsa 0 döner.
+    """
+    window = StudentWindow(ServerClient(), kiosk=False)
+    window.deleteLater()
+    load_demo_exam(1, ServerClock())  # demo_exam.json pakette var mı?
+    if not Path(ASSETS).is_dir():
+        logging.error("Duman testi: tema dosyaları bulunamadı (%s)", ASSETS)
+        return 1
+    logging.info("Duman testi başarılı")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     setup_logging("student")
-    args = parse_args(sys.argv[1:])
-    app = QApplication(sys.argv)
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("LabSınav Öğrenci")
+    if args.smoke_test:
+        return smoke_test()
     install_error_handler()
+    warn_if_unsupported_python()
     zoom = FontZoom(app, FULL_STYLESHEET)
 
     if args.demo:
@@ -356,7 +407,8 @@ def main() -> int:
         backend.start()
     else:
         window = StudentWindow(ServerClient(), zoom, kiosk=not args.no_kiosk,
-                               backup_dir=default_backup_dir())
+                               backup_dir=default_backup_dir(),
+                               last_server_path=default_last_server_path())
         window.show()
         window.start_discovery()
     return app.exec()

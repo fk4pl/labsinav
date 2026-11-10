@@ -25,7 +25,7 @@ from server.db.models import (
     SchoolClass,
     User,
 )
-from server.db.session import get_session, reset_db
+from server.db.session import get_session, reset_db, write_session
 from server.services.auth import hash_password
 from shared import config
 
@@ -114,15 +114,30 @@ def _student_name(index: int) -> str:
     return f"{first_name} {last_name}"
 
 
-def _create_users(session: Session, student_count: int) -> tuple[User, SchoolClass]:
+def password_hashes(student_count: int) -> dict[str, str]:
+    """Kullanıcı adı → şifre hash'i (eğitmen + öğrenciler).
+
+    bcrypt bilerek yavaştır (30 öğrenci ≈ birkaç saniye). Hash'leri önceden hesaplamak,
+    veri tabanı yazma kilidini bu süre boyunca tutmamızı önler.
+    """
+    hashes = {INSTRUCTOR[0]: hash_password(INSTRUCTOR[1])}
+    for i in range(student_count):
+        number = _student_no(i)
+        hashes[number] = hash_password(number)  # öğrenci şifresi = öğrenci no
+    return hashes
+
+
+def _create_users(
+    session: Session, student_count: int, hashes: dict[str, str],
+) -> tuple[User, SchoolClass]:
     class_a = SchoolClass(name=CLASS_A)
     class_b = SchoolClass(name=CLASS_B)
     session.add_all([class_a, class_b])
 
-    username, password, full_name = INSTRUCTOR
+    username, _password, full_name = INSTRUCTOR
     instructor = User(
         username=username, full_name=full_name,
-        password_hash=hash_password(password), role="instructor",
+        password_hash=hashes[username], role="instructor",
     )
     session.add(instructor)
 
@@ -130,7 +145,7 @@ def _create_users(session: Session, student_count: int) -> tuple[User, SchoolCla
     for i in range(student_count):
         number = _student_no(i)
         session.add(User(
-            username=number, full_name=_student_name(i), password_hash=hash_password(number),
+            username=number, full_name=_student_name(i), password_hash=hashes[number],
             role="student", school_class=class_a if i < half else class_b,
         ))
     return instructor, class_a
@@ -179,14 +194,34 @@ def _create_draft_exam(
     ]
 
 
-def seed(session: Session, student_count: int = DEFAULT_STUDENT_COUNT) -> None:
+def seed(
+    session: Session, student_count: int = DEFAULT_STUDENT_COUNT,
+    hashes: dict[str, str] | None = None,
+) -> None:
     """Örnek veriyi verilen oturuma ekler (tablolar boş olmalı).
 
     student_count: toplam öğrenci sayısı; ilk yarısı A, ikinci yarısı B sınıfına girer.
+    hashes: password_hashes() sonucu; verilmezse burada hesaplanır.
     """
-    instructor, class_a = _create_users(session, student_count)
+    if hashes is None:
+        hashes = password_hashes(student_count)
+    instructor, class_a = _create_users(session, student_count, hashes)
     mcqs, classics = _create_questions(session)
     _create_draft_exam(session, instructor, class_a, mcqs, classics)
+
+
+def load_demo_data(student_count: int = DEFAULT_STUDENT_COUNT) -> dict[str, int]:
+    """Veri tabanını SIFIRLAR ve örnek veriyi yükler; kayıt sayılarını döner.
+
+    Komut satırı (python -m scripts.seed) ve eğitmen uygulamasındaki
+    "Ayarlar → Örnek veri yükle (deneme)" bu fonksiyonu kullanır.
+    """
+    hashes = password_hashes(student_count)  # yavaş kısım: kilit dışında
+    with write_session() as session:
+        reset_db()
+        seed(session, student_count, hashes)
+    with get_session() as session:
+        return summary(session)
 
 
 def summary(session: Session) -> dict[str, int]:
@@ -220,11 +255,7 @@ def main(argv: list[str] | None = None) -> None:
     config.ensure_runtime_dirs()
     print(f"Veri tabanı sıfırlanıyor: {config.DB_PATH}")
     print(f"{args.students} öğrenci oluşturuluyor (şifreler hash'lendiği için biraz sürebilir)…")
-    reset_db()
-    with get_session() as session:
-        seed(session, args.students)
-    with get_session() as session:
-        counts = summary(session)
+    counts = load_demo_data(args.students)
     print("Örnek veri oluşturuldu: " + ", ".join(f"{v} {k}" for k, v in counts.items()))
     print(f"Eğitmen girişi: {INSTRUCTOR[0]} / {INSTRUCTOR[1]}")
     half = args.students // 2

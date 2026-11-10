@@ -3,7 +3,10 @@
 Bu dosyayı değiştirmek ekip onayı gerektirir (CLAUDE.md).
 """
 
+import sys
 from pathlib import Path
+
+import platformdirs
 
 # --- Ağ ---
 WS_PORT = 8765                    # WebSocket sunucusunun portu
@@ -27,10 +30,25 @@ MAX_QUESTION_POINTS = 100.0
 BCRYPT_ROUNDS = 12                # testlerde hız için düşürülür
 
 # --- Dosya yolları ---
+# Geliştirirken (python -m ...) data/ ve logs/ repo klasörünün içindedir.
+# Paketlenmiş .exe'de (PyInstaller, sys.frozen) program klasörüne yazılamayabilir;
+# bu yüzden kullanıcının uygulama veri klasörü kullanılır, ör.
+#     Windows: C:\Users\<ad>\AppData\Local\LabSinav\data  ve  ...\LabSinav\logs
+APP_DIR_NAME = "LabSinav"
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+IS_FROZEN = bool(getattr(sys, "frozen", False))
+
+
+def runtime_dirs(frozen: bool) -> tuple[Path, Path]:
+    """(veri klasörü, log klasörü). frozen: .exe olarak mı çalışıyoruz?"""
+    if frozen:
+        user_dir = Path(platformdirs.user_data_dir(APP_DIR_NAME, appauthor=False))
+        return user_dir / "data", user_dir / "logs"
+    return BASE_DIR / "data", BASE_DIR / "logs"
+
+
+DATA_DIR, LOG_DIR = runtime_dirs(IS_FROZEN)
 DB_PATH = DATA_DIR / "labsinav.db"
-LOG_DIR = BASE_DIR / "logs"
 EVENTS_LOG_PATH = LOG_DIR / "events.log"
 
 

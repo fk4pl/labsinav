@@ -120,6 +120,13 @@ class LoginPage(QWidget):
         if not self.password_input.hasFocus():  # şifre yazılıyorsa imleci oradan alma
             self.username_input.setFocus()
 
+    def set_address_hint(self, host: str, port: int) -> None:
+        """Son bağlanılan sunucu: IP kutusuna önceden yazılır (öğrenci tekrar yazmasın)."""
+        if self.address_input.text():
+            return
+        text = host if port == config.WS_PORT else f"{host}:{port}"
+        self.address_input.setText(text)
+
     def set_server_not_found(self) -> None:
         self._server = None
         self.server_label.setText(
