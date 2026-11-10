@@ -15,7 +15,7 @@ okunur çözümleri "akıllı" çözümlere tercih et.
 
 ## Teknoloji
 
-- Python 3.11+
+- Python 3.11–3.14 (3.15 desteklenmiyor: bkz. docs/SORUN_GIDERME.md)
 - Arayüz: **PySide6** (her iki uygulama)
 - Ağ: tek kanal **WebSocket** + JSON. Sunucu: `websockets` kütüphanesi (asyncio), eğitmen
   uygulamasında ayrı bir thread içinde çalışır; Qt tarafına **Signal** ile haber verir.
