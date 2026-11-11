@@ -77,9 +77,22 @@ def test_export_xlsx(empty_db, tmp_path: Path) -> None:
 
 # --- Hücre metinleri: yerel saat, "no · ad soyad", boş IP ---
 
+def local(utc_text: str, fmt: str = "%H:%M:%S") -> str:
+    """UTC zamanı bu bilgisayarın yerel saatiyle yazar (beklenen değer)."""
+    moment = datetime.fromisoformat(utc_text).replace(tzinfo=timezone.utc)
+    return moment.astimezone().strftime(fmt)
+
+
 @pytest.fixture
 def istanbul_time(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Yerel saati sabitle (UTC+3) ki sonuç test eden bilgisayara bağlı olmasın."""
+    """Mümkünse yerel saati UTC+3 yap ki dönüşüm gerçekten sınansın.
+
+    time.tzset() Windows'ta yok; orada bilgisayarın kendi saat dilimi kullanılır.
+    Beklenen değerler local() ile hesaplandığı için test her iki durumda da geçerli.
+    """
+    if not hasattr(time, "tzset"):
+        yield
+        return
     monkeypatch.setenv("TZ", "Europe/Istanbul")
     time.tzset()
     yield
@@ -88,12 +101,12 @@ def istanbul_time(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def test_format_detail_converts_iso_times_to_local(istanbul_time) -> None:
-    assert event_query.format_detail("Bitiş: 2026-11-06T20:31:33.123456+00:00") == "Bitiş: 23:31:33"
+    assert event_query.format_detail("Bitiş: 2026-11-06T20:31:33.123456+00:00") == f"Bitiş: {local('2026-11-06T20:31:33')}"
     assert event_query.format_detail("+5 dk, yeni bitiş: 2026-11-06T20:36:33+00:00") == (
-        "+5 dk, yeni bitiş: 23:36:33"
+        f"+5 dk, yeni bitiş: {local('2026-11-06T20:36:33')}"
     )
     # Saat dilimi yazmayan zaman UTC kabul edilir
-    assert event_query.format_detail("İstemci saati: 2026-11-06T20:31:33") == "İstemci saati: 23:31:33"
+    assert event_query.format_detail("İstemci saati: 2026-11-06T20:31:33") == f"İstemci saati: {local('2026-11-06T20:31:33')}"
 
 
 def test_format_detail_leaves_other_text(istanbul_time) -> None:
@@ -108,10 +121,10 @@ def test_row_values_show_full_name_and_dash_for_empty_ip(seeded_db, istanbul_tim
     unknown, focus = event_query.list_events(EventFilter())
 
     values = event_query.row_values(focus)
-    assert values[0] == "05.11.2026 13:00:00"
+    assert values[0] == local("2026-11-05T10:00:00", "%d.%m.%Y %H:%M:%S")
     assert values[2] == f"260101002 · {focus.full_name}" and focus.full_name
     assert values[4] == "—"
-    assert values[5] == "İstemci saati: 13:05:00"
+    assert values[5] == f"İstemci saati: {local('2026-11-05T10:05:00')}"
     assert event_query.row_values(unknown)[2] == "bilinmeyen"  # veri tabanında yok: sadece numara
     assert event_query.row_values(unknown)[4] == "10.0.0.9"
 
@@ -129,4 +142,4 @@ def test_export_uses_display_texts(seeded_db, istanbul_time, tmp_path: Path) -> 
     for row in (csv_row, list(xlsx_row)):
         assert row[2].startswith("260101002 · ")
         assert row[4] == "—"
-        assert row[5] == "Bitiş: 14:00:00"
+        assert row[5] == f"Bitiş: {local('2026-11-05T11:00:00')}"

@@ -132,7 +132,7 @@ def test_import_without_header_or_unsupported_file(seeded_db, tmp_path: Path) ->
     with pytest.raises(ImportFileError, match=".xls"):
         preview_student_import(tmp_path / "eski.xls")
     bad = tmp_path / "bozuk.xlsx"
-    bad.write_text("excel değil")
+    bad.write_text("excel değil", encoding="utf-8")
     with pytest.raises(ImportFileError, match="okunamadı"):
         preview_student_import(bad)
 

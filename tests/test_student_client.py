@@ -137,7 +137,8 @@ def test_second_login_elsewhere_replaces_first_session(server: WsServer, make_cl
     qt_wait_until(lambda: "logged_in" in rec1.names())
     second, rec2 = make_client()
     second.login("127.0.0.1", server.port, "260101001", "260101001")
-    qt_wait_until(lambda: "session_replaced" in rec1.names())
-    assert "logged_in" in rec2.names()
+    # İki ayrı bağlantıya giden mesajların varış sırası garanti değil (Windows'ta eskinin
+    # kapanması yeninin login_ok'undan önce gelebiliyor); ikisini de bekle.
+    qt_wait_until(lambda: "session_replaced" in rec1.names() and "logged_in" in rec2.names())
     qt_wait_until(lambda: True, timeout=0.5)
     assert ("connection_changed", ConnectionState.RECONNECTING) not in rec1.events  # yarışmaz
