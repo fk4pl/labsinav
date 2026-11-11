@@ -1,4 +1,4 @@
-"""Öğrenciler sekmesinin diyalogları. (Sahibi: D — P6)
+"""Öğrenciler sekmesinin diyalogları. (Sahibi: D)
 
 StudentDialog        tek öğrenci ekleme / düzenleme
 ImportPreviewDialog  Excel/CSV içe aktarma önizlemesi (eklenecek / zaten var / hatalı)

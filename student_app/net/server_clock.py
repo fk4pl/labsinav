@@ -1,6 +1,6 @@
 """Sunucu saatinin istemcideki tahmini. (Sahibi: C)
 
-Süreyi sunucu belirler (CLAUDE.md kural 2). Öğrencinin bilgisayar saati yanlış olabilir
+Süreyi sunucu belirler. Öğrencinin bilgisayar saati yanlış olabilir
 ya da sınav sırasında değiştirilebilir. Bu yüzden:
   - sunucudan her server_now geldiğinde (exam_start, exam_update, pong) onu ve o anın
     monotonic zamanını kaydederiz,

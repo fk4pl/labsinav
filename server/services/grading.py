@@ -1,10 +1,10 @@
-"""Puanlama: mcq ve classic soruların puanlanması, elle puan verme. (Sahibi: D — P4)
+"""Puanlama: mcq ve classic soruların puanlanması, elle puan verme. (Sahibi: D)
 
 Sunucu, bir sınav gönderildiğinde (öğrenci "Gönder"e bastığında, süre dolduğunda veya
 eğitmen sınavı durdurduğunda) her submission için grade_submission() fonksiyonunu ayrı
 bir thread'de çağırır. Hata fırlatırsak gönderim bozulmaz, sadece sunucu loguna yazılır.
 
-Kurallar (CLAUDE.md → Puanlama):
+Puanlama kuralları:
 - mcq: seçilen şık doğruysa sorunun puanı, değilse 0.
 - classic: cevap normalize edilir, kabul edilen cevaplardan biriyle eşleşirse tam puan.
 - code: FİNAL'de yazılacak; şimdilik puanlanmaz (points_awarded = None).

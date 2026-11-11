@@ -1,4 +1,4 @@
-"""Basit yatay çubuk grafik (QPainter ile çizilir). (Sahibi: D — P4)
+"""Basit yatay çubuk grafik (QPainter ile çizilir). (Sahibi: D)
 
 Kullanım:
     chart = BarChart()

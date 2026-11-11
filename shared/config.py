@@ -1,6 +1,6 @@
 """Uygulama genelindeki sabitler (port, dosya yolları, süreler).
 
-Bu dosyayı değiştirmek ekip onayı gerektirir (CLAUDE.md).
+Bu dosyayı değiştirmek ekip onayı gerektirir.
 """
 
 import sys

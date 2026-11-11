@@ -1,4 +1,4 @@
-"""Excel içe/dışa aktarma (openpyxl). (Sahibi: D — P4/P6)
+"""Excel içe/dışa aktarma (openpyxl). (Sahibi: D)
 
 export_results_xlsx(): sınav sonuçlarını üç sayfalı bir .xlsx dosyasına yazar:
   1. "Özet"         — katılım, ortalama, medyan, en yüksek/düşük, standart sapma
@@ -6,7 +6,7 @@ export_results_xlsx(): sınav sonuçlarını üç sayfalı bir .xlsx dosyasına 
   3. "Soru Analizi" — soru bazlı başarı oranları ve test sorularında şık dağılımı
 Veriler results.py'den alınır; bu dosya sadece biçimlendirme ile ilgilenir.
 
-Öğrenci içe aktarma (P6), iki adım:
+Öğrenci içe aktarma, iki adım:
   1. preview_student_import(dosya) — dosyayı okur, satırları doğrular; veri tabanına YAZMAZ.
      Sonuç: eklenecekler / zaten var olanlar / hatalı satırlar (nedeniyle). Arayüz bunu önizlemede gösterir.
   2. apply_student_import(eklenecekler, sınıf) — onaydan sonra öğrencileri ekler (şifre = öğrenci no).
@@ -200,7 +200,7 @@ def _local(moment: datetime | None) -> datetime | None:
 
 
 # ---------------------------------------------------------------------------
-# Öğrenci listesi içe aktarma (P6)
+# Öğrenci listesi içe aktarma
 # ---------------------------------------------------------------------------
 
 HEADER_SEARCH_ROWS = 10

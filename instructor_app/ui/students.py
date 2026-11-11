@@ -1,4 +1,4 @@
-"""Öğrenciler sekmesi: sınıflar, öğrenciler, Excel/CSV'den içe aktarma. (Sahibi: D — P6)
+"""Öğrenciler sekmesi: sınıflar, öğrenciler, Excel/CSV'den içe aktarma. (Sahibi: D)
 
 Sol: sınıf listesi (ekle / yeniden adlandır / sil). Sağ: seçili sınıfın öğrencileri.
 Bütün kurallar (öğrencisi olan sınıf silinemez, no benzersiz vb.) servislerdedir:

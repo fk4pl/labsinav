@@ -1,4 +1,4 @@
-"""Sonuçlar sekmesi. (Sahibi: D — P4)
+"""Sonuçlar sekmesi. (Sahibi: D)
 
 Yukarıdan aşağıya:
   - Sınav seçici + "Yenile", "Yeniden puanla", "Excel'e Aktar" düğmeleri

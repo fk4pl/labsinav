@@ -6,7 +6,13 @@ Programlama laboratuvarları için sınav ve kod değerlendirme sistemi.
 - **Eğitmen uygulaması**: sunucuyu başlatır, soruları ve sınavları yönetir, sınavı canlı izler, sonuçları gösterir.
 - **Öğrenci uygulaması**: sunucuyu ağda kendisi bulur, giriş yapar, sınavı çözer. Cevaplar her değişiklikte kaydedilir.
 
-Ayrıntılı mimari, protokol ve kurallar için: [CLAUDE.md](CLAUDE.md)
+### Mimari
+
+- Eğitmen uygulaması aynı zamanda sunucudur: yerel ağda bir WebSocket sunucusu açar (JSON mesajlar) ve verileri SQLite veri tabanında (SQLAlchemy) tutar.
+- Öğrenci uygulaması sunucuyu UDP broadcast ile ağda bulur (bulamazsa IP elle girilir) ve tek bir WebSocket bağlantısıyla haberleşir.
+- Sınav süresini sunucu belirler; süre dolunca gönderilmemiş sınavlar kaydedilmiş cevaplarla otomatik gönderilir.
+- Cevap anahtarı hiçbir zaman öğrenci uygulamasına gönderilmez; puanlama sunucuda yapılır.
+
 Sorun mu var? [docs/SORUN_GIDERME.md](docs/SORUN_GIDERME.md)
 
 ---

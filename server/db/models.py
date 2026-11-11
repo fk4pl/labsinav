@@ -1,6 +1,5 @@
 """Veri tabanı tabloları (SQLAlchemy 2.x ORM).
 
-Şema CLAUDE.md'deki "Veri tabanı şeması" bölümüyle birebir aynıdır.
 Değişiklik ekip onayı gerektirir.
 
 Tüm zamanlar UTC olarak saklanır (UTCDateTime). Arayüzde yerel saate çevrilir.

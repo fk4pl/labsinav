@@ -10,7 +10,7 @@ PAYLOAD_MODELS sözlüğüne ekle.
 ÖNEMLİ: İstemciye giden soru modelleri (QuestionForStudent, OptionForStudent)
 cevap anahtarı (is_correct, kabul edilen cevaplar, gizli test case'ler) İÇERMEZ.
 
-Bu dosyayı değiştirmek ekip onayı gerektirir (CLAUDE.md).
+Bu dosyayı değiştirmek ekip onayı gerektirir.
 """
 
 import json

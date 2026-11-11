@@ -1,4 +1,4 @@
-"""Sınıf ve öğrenci yönetimi: ekle, düzenle, sil, şifre sıfırla, sınıfa taşı. (Sahibi: D — P6)
+"""Sınıf ve öğrenci yönetimi: ekle, düzenle, sil, şifre sıfırla, sınıfa taşı. (Sahibi: D)
 
 Arayüz (instructor_app/ui/students.py) veri tabanına doğrudan dokunmaz; bu fonksiyonları çağırır.
 Hatalar StudentAdminError ile, kullanıcıya gösterilebilir Türkçe mesajla bildirilir.

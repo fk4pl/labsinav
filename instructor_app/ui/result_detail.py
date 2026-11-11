@@ -1,4 +1,4 @@
-"""Öğrenci sonuç detayı penceresi. (Sahibi: D — P4)
+"""Öğrenci sonuç detayı penceresi. (Sahibi: D)
 
 Her soru bir kart: soru metni, öğrencinin cevabı, doğru cevap, aldığı puan.
 Klasik sorularda eğitmen puanı elle değiştirebilir ("Kaydet") veya elle verilen puanı

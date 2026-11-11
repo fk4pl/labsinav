@@ -1,4 +1,4 @@
-"""Sonuçlar: sınav özeti, öğrenci listesi, öğrenci detayı ve soru analizi. (Sahibi: D — P4)
+"""Sonuçlar: sınav özeti, öğrenci listesi, öğrenci detayı ve soru analizi. (Sahibi: D)
 
 Bu dosyadaki fonksiyonlar sadece OKUR (get_session). Puan değiştirmek için grading.py'ye bakın.
 Arayüz ORM nesnesi değil, buradaki basit veri sınıflarını (dataclass) alır.

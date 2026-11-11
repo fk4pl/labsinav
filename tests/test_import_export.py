@@ -40,7 +40,7 @@ def test_export_results_xlsx(seeded_db, tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Öğrenci listesi içe aktarma (P6)
+# Öğrenci listesi içe aktarma
 # ---------------------------------------------------------------------------
 
 import pytest  # noqa: E402
